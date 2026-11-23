@@ -23,6 +23,9 @@ export const DEFAULT_INTENSITY: Intensity = "normal";
 /** 멘트 사이의 최소 간격(초). PRD 초안은 25초였지만, 1km·3km의 짧은 대결에서는 중계가 너무 적어서 12초로 줄였다 */
 export const VOICE_MIN_GAP_SEC = 12;
 
+/** 적극은 추월 예측·승률 변화까지 말해서 멘트가 쉴 틈 없이 이어지기 쉽다. 한마디 하고 쉬도록 간격을 더 둔다 */
+export const ACTIVE_VOICE_MIN_GAP_SEC = 22;
+
 /** 숫자 없이 "따라붙고 있습니다"만 말하는 예측은 이만큼(초) 간격을 두고 말한다 (같은 말이 반복되지 않게. 초안) */
 export const VAGUE_PREDICTION_GAP_SEC = 60;
 
@@ -90,13 +93,14 @@ export type VoicePolicyOptions = {
 };
 
 export function createVoicePolicy(options: VoicePolicyOptions = {}): VoicePolicy {
-  const minGap = options.minGapSec ?? VOICE_MIN_GAP_SEC;
-  if (!(minGap >= 0)) throw new Error("최소 간격은 0 이상이어야 한다");
+  if (options.minGapSec !== undefined && !(options.minGapSec >= 0)) throw new Error("최소 간격은 0 이상이어야 한다");
   let intensity: Intensity = options.intensity ?? DEFAULT_INTENSITY;
   let lastSpokenAt: number | null = null;
   let lastVagueAt: number | null = null;
 
-  const gapOk = (t: number) => lastSpokenAt === null || t - lastSpokenAt >= minGap;
+  // 간격을 직접 정하지 않으면 강도에 맞는 기본 간격을 쓴다
+  const minGap = () => options.minGapSec ?? (intensity === "active" ? ACTIVE_VOICE_MIN_GAP_SEC : VOICE_MIN_GAP_SEC);
+  const gapOk = (t: number) => lastSpokenAt === null || t - lastSpokenAt >= minGap();
 
   return {
     get intensity() {

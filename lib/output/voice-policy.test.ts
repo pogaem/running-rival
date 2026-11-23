@@ -10,6 +10,7 @@ import {
   isPriorityEvent,
   VAGUE_PREDICTION_GAP_SEC,
   VOICE_MIN_GAP_SEC,
+  ACTIVE_VOICE_MIN_GAP_SEC,
   type Intensity,
 } from "./voice-policy";
 
@@ -84,6 +85,14 @@ describe("createVoicePolicy · 이벤트 (최소 간격)", () => {
     expect(policy.decideEvent(LAST200(105))).toEqual({ speak: false, reason: "gap" });
     expect(policy.decideEvent(LAST200(111.9))).toEqual({ speak: false, reason: "gap" });
     expect(policy.decideEvent(LAST200(112))).toEqual({ speak: true, priority: false }); // 정확히 12초는 허용
+  });
+
+  it("적극은 한마디 하고 더 길게 쉰다 (일반보다 긴 간격)", () => {
+    expect(ACTIVE_VOICE_MIN_GAP_SEC).toBeGreaterThan(VOICE_MIN_GAP_SEC);
+    const policy = createVoicePolicy({ intensity: "active" });
+    policy.decideEvent(KM(100));
+    expect(policy.decideEvent(LAST200(100 + ACTIVE_VOICE_MIN_GAP_SEC - 0.1))).toEqual({ speak: false, reason: "gap" });
+    expect(policy.decideEvent(LAST200(100 + ACTIVE_VOICE_MIN_GAP_SEC))).toEqual({ speak: true, priority: false });
   });
 
   it("말하지 않은 이벤트는 간격을 새로 시작하지 않는다 (건너뛴 이벤트 때문에 다음 멘트가 늦어지지 않는다)", () => {
