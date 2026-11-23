@@ -15,6 +15,9 @@ export const SFX_URLS = {
   heartbeat: "/sfx/heartbeat.wav",
 } as const;
 
+/** 진짜 박수 녹음. 내 컴퓨터나 앱에 파일을 두지 않고 Wikimedia Commons에서 바로 불러와 튼다 (Thomas Bresson, CC BY 4.0). 못 불러오면 아래 합성음으로 대신한다 */
+export const APPLAUSE_URL = "https://upload.wikimedia.org/wikipedia/commons/1/19/Thomas_Bresson_-_Applaudissements.mp3";
+
 /** 파일 없이 브라우저가 직접 만들어 내는 소리: 박수. 다운로드할 것이 없다 */
 export type SfxName = keyof typeof SFX_URLS | "applause";
 const ALL_SFX: SfxName[] = ["cheer", "heartbeat", "applause"];
@@ -188,7 +191,15 @@ export function createBrowserSfxEnv(): SfxEnv | null {
 
   return {
     async load(name) {
-      if (name === "applause") return makeApplause();
+      if (name === "applause") {
+        try {
+          const response = await fetch(APPLAUSE_URL);
+          if (!response.ok) throw new Error("박수 녹음을 불러오지 못했다");
+          return await getContext().decodeAudioData(await response.arrayBuffer());
+        } catch {
+          return makeApplause(); // 인터넷이 막혀도 합성 박수는 난다
+        }
+      }
       const response = await fetch(SFX_URLS[name as keyof typeof SFX_URLS]);
       if (!response.ok) throw new Error(`효과음을 불러오지 못했다: ${name}`);
       const data = await response.arrayBuffer();

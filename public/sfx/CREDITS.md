@@ -6,3 +6,7 @@
 | heartbeat.wav | 빠른 심장 박동 (`heartbeat_fast_0.wav`, 원본 그대로) | bart | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (퍼블릭 도메인) | https://opengameart.org/content/heartbeat-sounds |
 
 앱 안에서는 재생할 때 소리 크기를 줄이고 앞부분만 틀지만, 파일 자체는 고치지 않았다.
+
+박수 소리는 파일을 앱에 넣지 않고 아래 주소에서 바로 불러와 재생한다.
+
+| applause | 박수 ("Applaudissements") | Thomas Bresson | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) (출처 표기 필요) | https://commons.wikimedia.org/wiki/File:Thomas_Bresson_-_Applaudissements.mp3 |

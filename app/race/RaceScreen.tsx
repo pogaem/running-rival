@@ -530,6 +530,12 @@ export default function RaceScreen() {
               OpenGameArt
             </a>
           </p>
+          <p>
+            박수: Thomas Bresson, &quot;Applaudissements&quot; (CC BY 4.0) ·{" "}
+            <a className="underline" href="https://commons.wikimedia.org/wiki/File:Thomas_Bresson_-_Applaudissements.mp3" target="_blank" rel="noreferrer">
+              Wikimedia Commons
+            </a>
+          </p>
         </section>
 
         <div className="mt-auto flex gap-3">
