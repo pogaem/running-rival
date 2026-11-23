@@ -1,10 +1,13 @@
 "use client";
-// 레이스 화면 (PLAN.md 작업 8, DESIGN.md 1.2)
-// 데모 경로(나)와 가상러너-03의 5km 레이스를 10배속으로 재생하면서, 엔진이 판단한 결과를 화면에 보여 준다.
+// 레이스 화면 (PLAN.md 작업 8·9, DESIGN.md 1.2)
+// 데모 경로(나)와 가상러너-03의 5km 레이스를 10배속으로 재생하면서, 엔진이 판단한 결과를 화면과 소리로 전한다.
 // 시작 화면(작업 12)과 매칭(작업 13), 실제 GPS(작업 14)가 생기기 전이라 지금은 고정된 데모 한 판이다.
-// 음성·효과음·진동은 작업 9~11에서 이 화면의 이벤트에 붙인다. 지금은 자막만 있다.
+// 중계 강도 선택은 원래 시작 화면(작업 12)에 들어갈 것인데, 거기가 생기기 전까지 이 화면에 임시로 둔다.
+// 브라우저는 사용자가 버튼을 누르기 전에는 소리를 막는다. 그래서 "소리 켜고 시작" 버튼을 누르면 레이스가 시작된다.
+// 효과음·진동은 작업 10·11에서 이 화면의 이벤트에 붙인다.
 import Link from "next/link";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import type { Prediction } from "@/lib/engine/catchup";
 import type { RaceEvent, RaceTick } from "@/lib/engine/race-engine";
 import { createRaceEngine } from "@/lib/engine/race-engine";
 import { displayPercent, WIN_STAGE_LABEL } from "@/lib/engine/winprob";
@@ -13,21 +16,37 @@ import { distanceBetweenM } from "@/lib/geo";
 import { createDemoInput, DEMO_SPEED } from "@/lib/input/demo-input";
 import { makeDemoTrack } from "@/lib/input/synthetic-track";
 import type { PositionSample } from "@/lib/input/types";
+import { createPhraseBook, type PhraseBook } from "@/lib/output/phrases";
+import { createBrowserSpeakerEnv, createSpeaker, type Speaker } from "@/lib/output/speaker";
 import {
+  applyVoiceResult,
+  displayText,
   formatGap,
   formatPrediction,
   formatRaceClock,
   makeLogEntry,
+  makePredictionLogEntry,
   prependLog,
   type LogEntry,
   type SubtitleTone,
+  type VoiceStatus,
 } from "@/lib/output/subtitles";
+import {
+  createVoicePolicy,
+  DEFAULT_INTENSITY,
+  INTENSITY_LABEL,
+  type Intensity,
+  type VoicePolicy,
+} from "@/lib/output/voice-policy";
 
 /** 격차 막대가 한쪽으로 보여 주는 최대 격차(미터). 이보다 벌어지면 막대 끝에 붙는다 */
 const GAP_BAR_RANGE_M = 50;
 
-/** 지금 시각(밀리초). 화면을 그리는 동안이 아니라 이벤트가 들어올 때만 부른다 */
-const nowMs = () => performance.now();
+/** 판정부터 음성 시작까지 허용되는 시간(밀리초). PRD 성공 기준: 3초 이내 */
+const VOICE_DELAY_LIMIT_MS = 3000;
+
+/** 화면에 보여 줄 중계 강도 선택지 */
+const INTENSITY_OPTIONS: Intensity[] = ["off", "minimal", "normal", "active"];
 
 /** 자막 색 */
 const TONE_CLASS: Record<SubtitleTone, string> = {
@@ -35,6 +54,9 @@ const TONE_CLASS: Record<SubtitleTone, string> = {
   bad: "text-rose-600 dark:text-rose-400",
   neutral: "text-foreground",
 };
+
+/** 지금 시각(밀리초). 화면을 그리는 동안이 아니라 이벤트가 들어올 때만 부른다 */
+const nowMs = () => performance.now();
 
 /** 페이스(초/km)를 "m:ss"로 쓴다. 멈춰 있어서 계산할 수 없으면 "-" */
 function formatPace(secPerKm: number): string {
@@ -52,19 +74,110 @@ function useWakeLockSupported(): boolean {
   );
 }
 
+/** 이 기기가 음성 읽기와 "다른 소리 낮추기(오디오 세션)"를 지원하는지 */
+function useVoiceSupport(): { speech: boolean; audioSession: boolean } {
+  const speech = useSyncExternalStore(
+    () => () => {},
+    () => "speechSynthesis" in window,
+    () => false,
+  );
+  const audioSession = useSyncExternalStore(
+    () => () => {},
+    () => "audioSession" in navigator,
+    () => false,
+  );
+  return { speech, audioSession };
+}
+
 type WakeStatus = "waiting" | "on" | "off" | "denied";
 
+/** 로그 한 줄의 음성 상태를 한 줄 글로 */
+function voiceLine(voice: VoiceStatus): string {
+  switch (voice.state) {
+    case "pending":
+      return "음성 읽는 중…";
+    case "started":
+      return `음성 시작까지 ${Math.round(voice.delayMs)}ms${voice.delayMs > VOICE_DELAY_LIMIT_MS ? " ⚠ 3초 초과" : ""}${
+        voice.ducked ? " · 다른 소리 낮춤" : voice.beeped ? " · 알림음" : ""
+      }`;
+    case "failed":
+      return `음성 실패: ${voice.message}`;
+    case "skipped":
+      return {
+        off: "음성 없음 (중계 끄기)",
+        intensity: "자막만 (이 강도에서는 말하지 않음)",
+        gap: "자막만 (직전 멘트와 간격이 짧음)",
+        unsupported: "자막만 (이 기기는 음성을 지원하지 않음)",
+      }[voice.reason];
+  }
+}
+
 export default function RaceScreen() {
+  const [phase, setPhase] = useState<"ready" | "running">("ready");
+  const [intensity, setIntensity] = useState<Intensity>(DEFAULT_INTENSITY);
   const [tick, setTick] = useState<RaceTick | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [running, setRunning] = useState(true);
   const [wake, setWake] = useState<WakeStatus>("waiting");
   const wakeSupported = useWakeLockSupported();
+  const voiceSupport = useVoiceSupport();
+
   const nextLogId = useRef(1);
   const latestTick = useRef<RaceTick | null>(null);
+  const speakerRef = useRef<Speaker | null>(null);
+  const policyRef = useRef<VoicePolicy | null>(null);
+  const bookRef = useRef<PhraseBook | null>(null);
 
-  // 데모 레이스 재생: 입력 → 엔진 → 화면
+  /** 이벤트와 예측을 자막으로 올리고, 말하기로 정해진 것은 소리로 읽는다 */
+  const outputMoments = useCallback((events: RaceEvent[], prediction: Prediction | null, t: number, decidedAtMs: number) => {
+    const policy = policyRef.current;
+    const book = bookRef.current;
+    const speaker = speakerRef.current;
+    if (!policy || !book) return;
+
+    const entries: LogEntry[] = [];
+    const speak = (id: number, text: string, priority: boolean) => {
+      void speaker?.speak(text, { priority }).then((result) => {
+        setLog((current) => applyVoiceResult(current, id, result));
+      });
+    };
+
+    for (const event of events) {
+      const id = nextLogId.current++;
+      const decision = policy.decideEvent(event);
+      if (decision.speak && speaker?.supported) {
+        const text = book.forEvent(event);
+        entries.push(makeLogEntry(id, event, decidedAtMs, nowMs(), { state: "pending", text }));
+        speak(id, text, decision.priority);
+      } else {
+        const voice: VoiceStatus = {
+          state: "skipped",
+          reason: decision.speak ? "unsupported" : decision.reason,
+        };
+        entries.push(makeLogEntry(id, event, decidedAtMs, nowMs(), voice));
+      }
+    }
+
+    // 추월 예측은 적극에서만 말하고, 말한 것만 자막 로그에 남긴다 (화면의 "지금 예상" 줄은 따로 늘 보인다)
+    const predictionDecision = policy.decidePrediction(t, prediction);
+    if (predictionDecision.speak && prediction && speaker?.supported) {
+      const id = nextLogId.current++;
+      const text = book.forPrediction(prediction);
+      entries.push(makePredictionLogEntry(id, t, text, decidedAtMs, nowMs(), { state: "pending", text }));
+      speak(id, text, false);
+    }
+
+    if (entries.length > 0) setLog((current) => prependLog(current, entries));
+  }, []);
+
+  // 중계 강도를 바꾸면 정책에도 바로 알린다
   useEffect(() => {
+    policyRef.current?.setIntensity(intensity);
+  }, [intensity]);
+
+  // 데모 레이스 재생: 입력 → 엔진 → 화면과 소리. "소리 켜고 시작"을 누르면 시작한다
+  useEffect(() => {
+    if (phase !== "running") return;
     const engine = createRaceEngine(getDemoRaceSetup());
     const input = createDemoInput(makeDemoTrack());
     let previous: PositionSample | null = null;
@@ -79,24 +192,20 @@ export default function RaceScreen() {
         const result = engine.update(sample.t, traveled);
         latestTick.current = result;
         setTick(result);
-
-        if (result.events.length > 0) {
-          const outputAtMs = nowMs();
-          const entries = result.events.map((event) =>
-            makeLogEntry(nextLogId.current++, event, decidedAtMs, outputAtMs),
-          );
-          setLog((current) => prependLog(current, entries));
-        }
+        outputMoments(result.events, result.prediction, sample.t, decidedAtMs);
       },
       onEnd: () => setRunning(false),
     });
 
-    return () => input.stop();
-  }, []);
+    return () => {
+      input.stop();
+      speakerRef.current?.cancel();
+    };
+  }, [phase, outputMoments]);
 
-  // 화면 꺼짐 방지: 지원되는 기기에서만. 화면이 가려졌다 돌아오면 다시 건다
+  // 화면 꺼짐 방지: 레이스가 시작된 뒤 지원되는 기기에서만. 화면이 가려졌다 돌아오면 다시 건다
   useEffect(() => {
-    if (!wakeSupported) return;
+    if (phase !== "running" || !wakeSupported) return;
     let sentinel: WakeLockSentinel | null = null;
     let cancelled = false;
 
@@ -129,16 +238,24 @@ export default function RaceScreen() {
       document.removeEventListener("visibilitychange", onVisible);
       void sentinel?.release();
     };
-  }, [wakeSupported]);
+  }, [phase, wakeSupported]);
 
-  // 개발 중에만 쓰는 이벤트 테스트 버튼: 2분을 기다리지 않고 자막이 나오는 모습을 바로 본다
+  /** "소리 켜고 시작": 소리 잠금을 풀고(사용자가 누른 때만 가능), 멘트 도구를 준비하고, 레이스를 시작한다 */
+  const startRace = () => {
+    const speaker = createSpeaker(createBrowserSpeakerEnv());
+    speaker.unlock();
+    speakerRef.current = speaker;
+    policyRef.current = createVoicePolicy({ intensity });
+    bookRef.current = createPhraseBook();
+    setPhase("running");
+  };
+
+  // 개발 중에만 쓰는 이벤트 테스트 버튼: 2분을 기다리지 않고 자막과 음성이 나오는 모습을 바로 본다
   const pushTestEvent = (type: "overtake" | "overtaken" | "last200m") => {
     const t = latestTick.current?.t ?? 0;
     const event: RaceEvent =
       type === "last200m" ? { type, t } : { type, t, gapM: type === "overtake" ? 12 : -12 };
-    const decidedAtMs = nowMs();
-    const entry = makeLogEntry(nextLogId.current++, event, decidedAtMs, nowMs());
-    setLog((current) => prependLog(current, [entry]));
+    outputMoments([event], null, t, nowMs());
   };
 
   const myDistance = tick?.snapshot.myDistanceM ?? 0;
@@ -147,6 +264,72 @@ export default function RaceScreen() {
   const predictionText = formatPrediction(tick?.prediction ?? null);
   const percent = tick?.estimate ? displayPercent(tick.estimate.probability) : null;
   const finished = tick?.finished ?? false;
+
+  const intensitySelector = (
+    <div role="radiogroup" aria-label="중계 강도" className="grid grid-cols-4 gap-2">
+      {INTENSITY_OPTIONS.map((option) => (
+        <button
+          key={option}
+          type="button"
+          role="radio"
+          aria-checked={intensity === option}
+          onClick={() => setIntensity(option)}
+          className={`rounded-md border px-2 py-2 text-xs ${
+            intensity === option ? "border-foreground bg-foreground text-background" : "border-foreground/30"
+          }`}
+        >
+          {INTENSITY_LABEL[option]}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (phase === "ready") {
+    return (
+      <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 p-4">
+        <header className="pt-4">
+          <h1 className="text-2xl font-bold">레이스</h1>
+          <p className="mt-1 text-sm text-foreground/70">
+            데모 · {DEMO_SPEED}배속 · {DEMO_RIVAL_ID}(가상 러너) · {DEMO_RACE_DISTANCE_M / 1000}km
+          </p>
+        </header>
+
+        <section aria-label="준비" className="flex flex-col gap-3 rounded-lg border border-foreground/30 p-3">
+          <h2 className="text-sm font-semibold">중계 강도</h2>
+          {intensitySelector}
+          <p className="text-xs text-foreground/60">
+            최소는 추월·결승만, 일반은 1km 통과·마지막 200m·접전까지, 적극은 추월 예측과 승률 변화까지 말합니다.
+          </p>
+        </section>
+
+        <section aria-label="소리 안내" className="flex flex-col gap-1 rounded-lg border border-foreground/30 p-3 text-sm">
+          <p>이어폰을 끼고, 음악을 듣는다면 틀어 두세요. 이어폰의 외부 소리 듣기 모드를 켜고 뛰는 것을 권장합니다.</p>
+          <p className="text-xs text-foreground/60">
+            음성 중계: {voiceSupport.speech ? "이 기기에서 지원됩니다" : "이 기기에서는 지원되지 않습니다 (자막만 나옵니다)"}
+          </p>
+          <p className="text-xs text-foreground/60">
+            음악 위에서 들리게 하기:{" "}
+            {voiceSupport.audioSession
+              ? "멘트 동안 다른 소리를 낮춥니다"
+              : "다른 소리를 낮출 수 없는 기기라서 멘트 앞에 짧은 알림음을 넣습니다"}
+          </p>
+        </section>
+
+        <div className="mt-auto flex gap-3">
+          <Link href="/" className="flex-1 rounded-lg border border-foreground/30 px-4 py-3 text-center">
+            돌아가기
+          </Link>
+          <button
+            type="button"
+            onClick={startRace}
+            className="flex-1 rounded-lg bg-foreground px-4 py-3 text-center font-semibold text-background"
+          >
+            소리 켜고 시작
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 p-4">
@@ -203,6 +386,11 @@ export default function RaceScreen() {
         )}
       </section>
 
+      <section aria-label="중계 강도" className="rounded-lg border border-foreground/30 p-3">
+        <h2 className="mb-2 text-sm font-semibold">중계 강도</h2>
+        {intensitySelector}
+      </section>
+
       <section aria-label="중계 자막" className="flex min-h-0 flex-1 flex-col rounded-lg border border-foreground/30 p-3">
         <h2 className="text-sm font-semibold">중계 자막</h2>
         <ol aria-live="polite" className="mt-2 flex max-h-56 flex-col gap-2 overflow-y-auto">
@@ -210,10 +398,11 @@ export default function RaceScreen() {
           {log.map((entry) => (
             <li key={entry.id} className="text-sm">
               <p className={TONE_CLASS[entry.tone]}>
-                <span className="tabular-nums text-foreground/60">{formatRaceClock(entry.raceTimeSec)}</span> {entry.text}
+                <span className="tabular-nums text-foreground/60">{formatRaceClock(entry.raceTimeSec)}</span>{" "}
+                {displayText(entry)}
               </p>
               <p className="text-xs tabular-nums text-foreground/50">
-                판정 {formatRaceClock(entry.raceTimeSec)} · 자막 출력까지 {entry.delayMs.toFixed(1)}ms
+                판정 {formatRaceClock(entry.raceTimeSec)} · 자막 {entry.delayMs.toFixed(1)}ms · {voiceLine(entry.voice)}
               </p>
             </li>
           ))}

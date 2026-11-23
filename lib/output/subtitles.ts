@@ -22,7 +22,7 @@ export function formatGap(gapM: number): string {
 }
 
 /** 자막의 종류와 분위기(화면에서 색을 고르는 데 쓴다) */
-export type SubtitleKind = "lead" | "close" | "stage" | "distance" | "finish";
+export type SubtitleKind = "lead" | "close" | "stage" | "distance" | "finish" | "prediction";
 export type SubtitleTone = "good" | "bad" | "neutral";
 
 export type Subtitle = {
@@ -74,6 +74,17 @@ export function formatPrediction(prediction: Prediction | null): string | null {
   return prediction.speak === "number" ? `${seconds}초 뒤 상대에게 따라잡힐 수 있습니다` : "상대가 뒤에서 따라붙고 있습니다";
 }
 
+/** 이 멘트가 소리로 나갔는지를 나타내는 상태 */
+export type VoiceStatus =
+  /** 읽기를 요청했고 아직 시작 신호를 기다리는 중 */
+  | { state: "pending"; text: string }
+  /** 읽기가 시작됐다. delayMs는 판정부터 음성이 시작되기까지 걸린 시간(밀리초). PRD 기준은 3초(3000ms) 이내 */
+  | { state: "started"; text: string; startedAtMs: number; delayMs: number; ducked: boolean; beeped: boolean }
+  /** 읽기에 실패했다 */
+  | { state: "failed"; text: string; message: string }
+  /** 말하지 않았다: 끄기 / 중계 강도에 맞지 않음 / 최소 간격 / 이 기기가 음성을 지원하지 않음 */
+  | { state: "skipped"; reason: "off" | "intensity" | "gap" | "unsupported" };
+
 /** 자막 로그의 한 줄 */
 export type LogEntry = Subtitle & {
   /** 로그 안에서 겹치지 않는 번호 */
@@ -84,12 +95,20 @@ export type LogEntry = Subtitle & {
   decidedAtMs: number;
   /** 자막으로 올린 실제 시계 시각(밀리초) */
   outputAtMs: number;
-  /** 판정부터 출력까지 걸린 시간(밀리초). PRD 기준은 3초(3000ms) 이내 */
+  /** 판정부터 자막 출력까지 걸린 시간(밀리초) */
   delayMs: number;
+  /** 음성 상태 */
+  voice: VoiceStatus;
 };
 
-/** 이벤트로 로그 한 줄을 만든다 */
-export function makeLogEntry(id: number, event: RaceEvent, decidedAtMs: number, outputAtMs: number): LogEntry {
+/** 이벤트로 로그 한 줄을 만든다. 음성 상태를 모르면 "말하지 않음(끄기)"으로 둔다 */
+export function makeLogEntry(
+  id: number,
+  event: RaceEvent,
+  decidedAtMs: number,
+  outputAtMs: number,
+  voice: VoiceStatus = { state: "skipped", reason: "off" },
+): LogEntry {
   return {
     ...formatRaceEvent(event),
     id,
@@ -97,7 +116,65 @@ export function makeLogEntry(id: number, event: RaceEvent, decidedAtMs: number, 
     decidedAtMs,
     outputAtMs,
     delayMs: outputAtMs - decidedAtMs,
+    voice,
   };
+}
+
+/** 추월 예측을 말한 것을 로그 한 줄로 만든다. 자막 글은 실제로 읽은 멘트와 같다 */
+export function makePredictionLogEntry(
+  id: number,
+  raceTimeSec: number,
+  text: string,
+  decidedAtMs: number,
+  outputAtMs: number,
+  voice: VoiceStatus,
+): LogEntry {
+  return {
+    kind: "prediction",
+    tone: "neutral",
+    text,
+    id,
+    raceTimeSec,
+    decidedAtMs,
+    outputAtMs,
+    delayMs: outputAtMs - decidedAtMs,
+    voice,
+  };
+}
+
+/** 이 줄에 보여 줄 글: 소리로 읽은(읽는) 멘트가 있으면 그것을, 아니면 자막 글을 보여 준다 */
+export function displayText(entry: LogEntry): string {
+  return entry.voice.state === "pending" || entry.voice.state === "started" ? entry.voice.text : entry.text;
+}
+
+/** 읽기 결과를 받아 로그 한 줄의 음성 상태를 바꾼 새 로그를 돌려준다. 그 번호의 줄이 없으면 그대로 돌려준다 */
+export function applyVoiceResult(
+  log: LogEntry[],
+  id: number,
+  result:
+    | { status: "started"; startedAtMs: number; ducked: boolean; beeped: boolean }
+    | { status: "unsupported" }
+    | { status: "error"; message: string },
+): LogEntry[] {
+  return log.map((entry) => {
+    if (entry.id !== id || entry.voice.state !== "pending") return entry;
+    const text = entry.voice.text;
+    if (result.status === "started") {
+      return {
+        ...entry,
+        voice: {
+          state: "started",
+          text,
+          startedAtMs: result.startedAtMs,
+          delayMs: result.startedAtMs - entry.decidedAtMs,
+          ducked: result.ducked,
+          beeped: result.beeped,
+        },
+      };
+    }
+    if (result.status === "unsupported") return { ...entry, voice: { state: "skipped", reason: "unsupported" } };
+    return { ...entry, voice: { state: "failed", text, message: result.message } };
+  });
 }
 
 /** 로그의 맨 앞(가장 최근)에 새 줄들을 붙이고, 오래된 줄은 maxEntries개까지만 남긴다 */

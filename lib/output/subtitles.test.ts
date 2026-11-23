@@ -3,11 +3,14 @@ import { describe, expect, it } from "vitest";
 import type { Prediction } from "../engine/catchup";
 import type { RaceEvent } from "../engine/race-engine";
 import {
+  applyVoiceResult,
+  displayText,
   formatGap,
   formatPrediction,
   formatRaceClock,
   formatRaceEvent,
   makeLogEntry,
+  makePredictionLogEntry,
   prependLog,
 } from "./subtitles";
 
@@ -124,5 +127,69 @@ describe("makeLogEntry · prependLog (자막 로그)", () => {
   it("새 줄이 없으면 로그를 그대로 돌려준다", () => {
     const log = [makeLogEntry(1, overtake, 0, 0)];
     expect(prependLog(log, [])).toBe(log);
+  });
+});
+
+describe("로그의 음성 상태", () => {
+  const overtake: RaceEvent = { type: "overtake", t: 1225, gapM: 12 };
+
+  it("음성 상태를 모르면 '말하지 않음(끄기)'으로 시작한다", () => {
+    expect(makeLogEntry(1, overtake, 0, 0).voice).toEqual({ state: "skipped", reason: "off" });
+  });
+
+  it("읽기를 요청한 줄에는 읽을 멘트가 붙고, 화면에는 그 멘트가 보인다", () => {
+    const entry = makeLogEntry(1, overtake, 100, 101, { state: "pending", text: "역전입니다! 도전자, 선두로 올라섭니다!" });
+    expect(displayText(entry)).toBe("역전입니다! 도전자, 선두로 올라섭니다!");
+  });
+
+  it("말하지 않은 줄에는 자막 글이 보인다", () => {
+    const entry = makeLogEntry(1, overtake, 100, 101, { state: "skipped", reason: "gap" });
+    expect(displayText(entry)).toContain("추월!");
+  });
+
+  it("읽기가 시작되면 판정부터 음성 시작까지 걸린 시간을 계산해 넣는다", () => {
+    const entry = makeLogEntry(7, overtake, 5000, 5001, { state: "pending", text: "추월!" });
+    const [updated] = applyVoiceResult([entry], 7, { status: "started", startedAtMs: 5180, ducked: false, beeped: true });
+    expect(updated.voice).toEqual({
+      state: "started",
+      text: "추월!",
+      startedAtMs: 5180,
+      delayMs: 180,
+      ducked: false,
+      beeped: true,
+    });
+  });
+
+  it("읽기에 실패하면 실패와 이유를 남기고, 화면에는 자막 글이 보인다", () => {
+    const entry = makeLogEntry(7, overtake, 0, 0, { state: "pending", text: "추월!" });
+    const [updated] = applyVoiceResult([entry], 7, { status: "error", message: "synthesis-failed" });
+    expect(updated.voice).toEqual({ state: "failed", text: "추월!", message: "synthesis-failed" });
+    expect(displayText(updated)).toContain("추월!");
+  });
+
+  it("지원하지 않는 기기로 밝혀지면 '말하지 않음(지원 안 됨)'으로 바꾼다", () => {
+    const entry = makeLogEntry(7, overtake, 0, 0, { state: "pending", text: "추월!" });
+    const [updated] = applyVoiceResult([entry], 7, { status: "unsupported" });
+    expect(updated.voice).toEqual({ state: "skipped", reason: "unsupported" });
+  });
+
+  it("다른 줄이나, 이미 결과가 정해진 줄은 건드리지 않는다", () => {
+    const pending = makeLogEntry(1, overtake, 0, 0, { state: "pending", text: "추월!" });
+    const other = makeLogEntry(2, overtake, 0, 0, { state: "pending", text: "역전!" });
+    const log = [pending, other];
+    const updated = applyVoiceResult(log, 1, { status: "started", startedAtMs: 10, ducked: false, beeped: false });
+    expect(updated[1]).toBe(other);
+    // 이미 시작된 줄에 또 결과가 와도 그대로
+    const again = applyVoiceResult(updated, 1, { status: "error", message: "늦게 온 오류" });
+    expect(again[0].voice.state).toBe("started");
+  });
+
+  it("예측을 말한 줄은 예측 종류이고, 읽은 멘트가 자막 글이다", () => {
+    const entry = makePredictionLogEntry(3, 1190, "도전자, 35초 뒤 추월 페이스입니다!", 10, 11, {
+      state: "pending",
+      text: "도전자, 35초 뒤 추월 페이스입니다!",
+    });
+    expect(entry).toMatchObject({ kind: "prediction", tone: "neutral", raceTimeSec: 1190, delayMs: 1 });
+    expect(displayText(entry)).toBe("도전자, 35초 뒤 추월 페이스입니다!");
   });
 });
