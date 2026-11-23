@@ -3,6 +3,7 @@
 // 레이스가 끝나면 레이스 화면이 이 기기의 sessionStorage에 담아 둔 요약을 읽어 보여 준다.
 // 승패와 기록, 시간대별 격차 그래프(누가 언제 앞섰는지), 양쪽 기록 조건, 리매치.
 // 라이벌 전적과 개인 최고 기록(작업 18)은 레이스 화면이 저장하면서 요약에 함께 담아 둔다.
+import RouteMap, { type RouteMarker } from "../RouteMap";
 import { displayName } from "@/lib/runner-names";
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
@@ -187,6 +188,18 @@ export default function ResultScreen() {
   const rematchHref = `/race?${settingsToQuery(settings)}`;
   const OPPONENT_SOURCE = { virtual: "가상 러너", camp: "캠프 참가자", mine: "내 기록", shared: "다른 러너 기록" } as const;
 
+  // 코스 타임라인: 출발, 추월 지점(걸린 시간 비율로 위치를 잡는다), 도착
+  const timelineMarkers: RouteMarker[] = [
+    { fraction: 0, label: "출발", tone: "flag", side: "right" },
+    ...summary.reversals.map((reversal, i): RouteMarker => ({
+      fraction: Math.min(0.96, Math.max(0.04, reversal.t / summary.myTimeSec)),
+      label: `${reversal.type === "overtake" ? "추월" : "추월당함"} ${formatRaceClock(reversal.t)}`,
+      tone: reversal.type === "overtake" ? "me" : "rival",
+      side: i % 2 === 0 ? "left" : "right",
+    })),
+    { fraction: 1, label: `도착 ${formatRaceClock(summary.myTimeSec)}`, tone: "flag", side: "left" },
+  ];
+
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 p-4">
       <header className="pt-4">
@@ -196,10 +209,16 @@ export default function ResultScreen() {
         </p>
       </header>
 
+      <section aria-label="코스 타임라인" className="glass relative h-[380px] overflow-hidden !p-0">
+        <RouteMap label="레이스 코스와 추월 지점" progress={1} markers={timelineMarkers} />
+        <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/70 to-transparent p-5 pb-10">
+          <p className={`text-6xl font-bold tracking-tight ${summary.won ? "text-emerald-400" : "text-red-400"}`}>
+            {summary.won ? "승리" : "패배"}
+          </p>
+        </div>
+      </section>
+
       <section aria-label="승패와 기록" className="glass flex flex-col gap-4 p-5">
-        <p className={`text-6xl font-bold tracking-tight ${summary.won ? "text-emerald-400" : "text-red-400"}`}>
-          {summary.won ? "승리" : "패배"}
-        </p>
         <p className="text-sm text-white/70">
           {summary.won ? `${formatMargin(margin)} 먼저 들어왔어요` : `${formatMargin(margin)} 차이로 아쉽게 졌어요`}
           {summary.reversals.length > 0 ? ` · 역전 ${summary.reversals.length}번` : " · 역전 없이 끝났어요"}

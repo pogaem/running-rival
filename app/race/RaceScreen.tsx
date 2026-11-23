@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Prediction } from "@/lib/engine/catchup";
 import type { RaceEvent, RaceTick } from "@/lib/engine/race-engine";
+import RouteMap, { type RouteMarker } from "../RouteMap";
 import { createRaceEngine } from "@/lib/engine/race-engine";
 import { displayPercent, WIN_STAGE_LABEL } from "@/lib/engine/winprob";
 import { distanceBetweenM } from "@/lib/geo";
@@ -428,6 +429,19 @@ export default function RaceScreen() {
   const rivalDistance = tick?.snapshot.opponentDistanceM ?? 0;
   /** 코스 위 위치(0~100%) */
   const trackPercent = (distanceM: number) => Math.max(0, Math.min(100, (distanceM / raceDistanceM) * 100));
+  const meAhead = myDistance >= rivalDistance;
+  const raceMarkers: RouteMarker[] = [
+    { fraction: 0, label: "출발", tone: "flag", side: "right" },
+    ...Array.from({ length: Math.max(0, Math.ceil(raceDistanceM / 1000) - 1) }, (_, k): RouteMarker => ({
+      fraction: ((k + 1) * 1000) / raceDistanceM,
+      label: `${k + 1}km`,
+      tone: "km",
+      side: "right",
+    })),
+    { fraction: 1, label: "도착", tone: "flag", side: "left" },
+    { fraction: trackPercent(rivalDistance) / 100, label: `상대 ${(rivalDistance / 1000).toFixed(2)}km`, tone: "rival", side: meAhead ? "right" : "left", dy: -26 },
+    { fraction: trackPercent(myDistance) / 100, label: `나 ${(myDistance / 1000).toFixed(2)}km`, tone: "me", side: meAhead ? "left" : "right" },
+  ];
   const gapPosition = 50 + (Math.max(-GAP_BAR_RANGE_M, Math.min(GAP_BAR_RANGE_M, gap)) / GAP_BAR_RANGE_M) * 50;
   const predictionText = formatPrediction(tick?.prediction ?? null);
   const percent = tick?.estimate ? displayPercent(tick.estimate.probability) : null;
@@ -579,38 +593,24 @@ export default function RaceScreen() {
         </p>
       )}
 
-      <section aria-label="진행 상황" className="glass flex flex-col gap-4 p-5">
-        <div className="flex items-end justify-between">
+      <section aria-label="진행 상황" className="glass relative h-[420px] overflow-hidden !p-0">
+        <RouteMap
+          label="코스 위 나와 상대의 위치"
+          progress={trackPercent(myDistance) / 100}
+          markers={raceMarkers}
+        />
+        <div className="absolute inset-x-0 top-0 flex items-start justify-between bg-gradient-to-b from-black/70 to-transparent p-5 pb-10">
           <div>
-            <p className="text-xs font-semibold text-white/55">달린 거리</p>
+            <p className="text-xs font-semibold text-white/60">달린 거리</p>
             <p className="text-5xl font-bold tracking-tight tabular-nums">
               {(myDistance / 1000).toFixed(2)}
               <span className="ml-1 text-base font-medium text-white/60">/ {raceDistanceM / 1000} km</span>
             </p>
           </div>
           <div className="text-right">
-            <p className="text-xs font-semibold text-white/55">경과 시간</p>
+            <p className="text-xs font-semibold text-white/60">경과 시간</p>
             <p className="text-3xl font-bold tracking-tight tabular-nums">{formatRaceClock(tick?.t ?? 0)}</p>
           </div>
-        </div>
-        <div className="relative h-10" role="img" aria-label="코스 위 나와 상대의 위치">
-          <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-white/15" />
-          <div
-            className="absolute left-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-white/60"
-            style={{ width: `${trackPercent(myDistance)}%` }}
-          />
-          <span
-            className="absolute top-0 -translate-x-1/2 rounded-full bg-orange-400/90 px-2 py-0.5 text-[10px] font-bold text-[#0a0c12]"
-            style={{ left: `${trackPercent(rivalDistance)}%` }}
-          >
-            상대
-          </span>
-          <span
-            className="absolute bottom-0 -translate-x-1/2 rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-[#0a0c12]"
-            style={{ left: `${trackPercent(myDistance)}%` }}
-          >
-            나
-          </span>
         </div>
       </section>
 

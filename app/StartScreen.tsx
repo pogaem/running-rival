@@ -3,6 +3,7 @@
 // 대결 거리, 평소 페이스, 중계 강도를 정하고 레이스 화면으로 보낸다.
 // 매칭된 상대 칸은 역전 예측 매칭(작업 13)의 결과를 보여 준다. 역전이 "예상"된다는 뜻이지 보장은 아니다.
 import { useOpponentPool } from "./useOpponentPool";
+import RouteMap, { type RouteMarker } from "./RouteMap";
 import { displayName } from "@/lib/runner-names";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
@@ -62,6 +63,18 @@ export default function StartScreen() {
   const rivalRecord = opponent ? formatRivalRecord(history.rivals[opponent.id]) : null;
   const bestPace = bestPaceSecPerKm(history, distanceM);
 
+  // 코스 미리보기: 출발과 도착, 1km마다 거리 표시
+  const previewMarkers: RouteMarker[] = [
+    { fraction: 0, label: "출발", tone: "flag", side: "right" },
+    ...Array.from({ length: Math.max(0, Math.ceil(distanceM / 1000) - 1) }, (_, k): RouteMarker => ({
+      fraction: ((k + 1) * 1000) / distanceM,
+      label: `${k + 1}km`,
+      tone: "km",
+      side: k % 2 === 0 ? "left" : "right",
+    })),
+    { fraction: 1, label: `도착 ${distanceM / 1000}km`, tone: "flag", side: "left" },
+  ];
+
   const start = (source: RaceSource) => {
     if (!pace.ok || !distance.ok) return;
     router.push(`/race?${settingsToQuery({ source, distanceM, paceSecPerKm: pace.paceSecPerKm, intensity, opponentId: opponent?.id })}`);
@@ -69,10 +82,13 @@ export default function StartScreen() {
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 p-5 pb-8">
-      <header className="pt-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/50">Running Rival</p>
-        <h1 className="mt-2 text-4xl font-bold leading-tight tracking-tight">러닝 라이벌</h1>
-        <p className="mt-2 text-sm text-white/65">역전이 일어날 상대를 골라, 경기를 중계해 드립니다.</p>
+      <header className="relative -mx-5 -mt-5 h-[300px] overflow-hidden rounded-b-[2.5rem]">
+        <RouteMap variant="wide" label={`${distanceM / 1000}km 코스 미리보기`} markers={previewMarkers} />
+        <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/70 to-transparent px-5 pb-10 pt-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">Running Rival</p>
+          <h1 className="mt-2 text-4xl font-bold leading-tight tracking-tight">러닝 라이벌</h1>
+          <p className="mt-2 text-sm text-white/70">역전이 일어날 상대를 골라, 경기를 중계해 드립니다.</p>
+        </div>
       </header>
 
       <section aria-label="대결 설정" className="flex flex-col gap-4">
