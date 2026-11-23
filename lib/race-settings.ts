@@ -2,7 +2,9 @@
 // 대결 거리, 평소 페이스, 중계 강도를 검사하고, 시작 화면에서 레이스 화면으로 주소(쿼리)에 실어 보낸다.
 // 위치나 이름 같은 개인 정보는 없고 숫자 세 개뿐이다.
 import { DEFAULT_INTENSITY, type Intensity } from "./output/voice-policy";
+import { matchOpponent, type MatchResult } from "./matching/match";
 import type { RunRecord } from "./record";
+import { getOpponentRecords } from "./runners";
 
 /** 고를 수 있는 대결 거리(미터) */
 export const RACE_DISTANCES_M = [3000, 5000] as const;
@@ -90,24 +92,7 @@ export function averagePaceSecPerKm(record: RunRecord): number {
   return (last.t / last.d) * 1000;
 }
 
-/**
- * 임시 상대 고르기: 대결 거리 이상을 완주한 기록 중 평균 페이스가 내 페이스에 가장 가까운 것.
- * 같은 거리라면 더 느린 쪽을 고른다.
- * 역전이 일어날 상대를 고르는 진짜 매칭은 PLAN 작업 13에서 만들고, 그때 이 함수는 대체된다.
- */
-export function pickInterimOpponent(records: RunRecord[], paceSecPerKm: number, raceDistanceM: number): RunRecord | null {
-  let best: RunRecord | null = null;
-  let bestGap = Infinity;
-  let bestPace = 0;
-  for (const record of records) {
-    if (record.completedDistanceM < raceDistanceM) continue;
-    const pace = averagePaceSecPerKm(record);
-    const gap = Math.abs(pace - paceSecPerKm);
-    if (gap < bestGap - 1e-9 || (Math.abs(gap - bestGap) <= 1e-9 && pace > bestPace)) {
-      best = record;
-      bestGap = gap;
-      bestPace = pace;
-    }
-  }
-  return best;
+/** 설정으로 상대를 고른다(역전 예측 매칭). 같은 설정이면 늘 같은 상대가 나온다 */
+export function matchForSettings(settings: RaceSettings, records: RunRecord[] = getOpponentRecords()): MatchResult | null {
+  return matchOpponent(records, { distanceM: settings.distanceM, paceSecPerKm: settings.paceSecPerKm });
 }

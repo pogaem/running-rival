@@ -14,8 +14,7 @@ import { displayPercent, WIN_STAGE_LABEL } from "@/lib/engine/winprob";
 import { distanceBetweenM } from "@/lib/geo";
 import { createDemoInput, DEMO_SPEED } from "@/lib/input/demo-input";
 import { makeStraightTrack } from "@/lib/input/synthetic-track";
-import { pickInterimOpponent, settingsFromQuery } from "@/lib/race-settings";
-import { getOpponentRecords } from "@/lib/runners";
+import { matchForSettings, settingsFromQuery } from "@/lib/race-settings";
 import { useSearchParams } from "next/navigation";
 import type { PositionSample } from "@/lib/input/types";
 import { createBrowserSfxEnv, createSfx, type Sfx } from "@/lib/output/sfx";
@@ -119,10 +118,7 @@ export default function RaceScreen() {
   const [phase, setPhase] = useState<"ready" | "running">("ready");
   const searchParams = useSearchParams();
   const settings = useMemo(() => settingsFromQuery((key) => searchParams.get(key)), [searchParams]);
-  const opponent = useMemo(
-    () => pickInterimOpponent(getOpponentRecords(), settings.paceSecPerKm, settings.distanceM),
-    [settings],
-  );
+  const opponent = useMemo(() => matchForSettings(settings)?.opponent ?? null, [settings]);
   const raceDistanceM = settings.distanceM;
   const [intensity, setIntensity] = useState<Intensity>(settings.intensity);
   const [tick, setTick] = useState<RaceTick | null>(null);

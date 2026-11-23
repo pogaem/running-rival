@@ -5,7 +5,7 @@ import {
   DEFAULT_RACE_SETTINGS,
   formatPace,
   parsePaceInput,
-  pickInterimOpponent,
+  matchForSettings,
   settingsFromQuery,
   settingsToQuery,
   type RaceSettings,
@@ -64,19 +64,20 @@ describe("설정 ↔ 주소 쿼리", () => {
   });
 });
 
-describe("pickInterimOpponent (작업 13 전의 임시 상대)", () => {
-  it("내 페이스에 가장 가까운 평균 페이스의 가상 러너를 고른다", () => {
-    expect(pickInterimOpponent(virtualRunners, 300, 5000)?.id).toBe("가상러너-01");
-    expect(pickInterimOpponent(virtualRunners, 355, 5000)?.id).toBe("가상러너-05"); // 6:00에 가장 가깝다
-    expect(pickInterimOpponent(virtualRunners, 600, 3000)?.id).toBe("가상러너-09");
+describe("matchForSettings (설정으로 상대 고르기)", () => {
+  it("설정이 같으면 늘 같은 상대가 나온다", () => {
+    const settings: RaceSettings = { distanceM: 5000, paceSecPerKm: 320, intensity: "normal" };
+    expect(matchForSettings(settings, virtualRunners)?.opponent.id).toBe(matchForSettings(settings, virtualRunners)?.opponent.id);
+    expect(matchForSettings(settings, virtualRunners)?.opponent.id).toBe("가상러너-03");
   });
 
-  it("똑같이 가까우면 더 느린 쪽을 고른다", () => {
-    expect(pickInterimOpponent(virtualRunners, 320, 5000)?.id).toBe("가상러너-03"); // 5:10과 5:30 사이
+  it("3km와 5km 모두 상대가 나온다", () => {
+    for (const distanceM of [3000, 5000] as const) {
+      expect(matchForSettings({ distanceM, paceSecPerKm: 360, intensity: "normal" }, virtualRunners)).not.toBeNull();
+    }
   });
 
-  it("5km 기록도 3km 대결 상대가 될 수 있고, 대결 거리보다 짧은 기록은 쓰지 않는다", () => {
-    expect(pickInterimOpponent(virtualRunners, 330, 3000)?.id).toBe("가상러너-03");
-    expect(pickInterimOpponent(virtualRunners, 330, 10000)).toBeNull();
+  it("앱에 들어 있는 기록으로도 매칭된다 (기본 기록 사용)", () => {
+    expect(matchForSettings(DEFAULT_RACE_SETTINGS)).not.toBeNull();
   });
 });

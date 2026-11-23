@@ -1,7 +1,7 @@
 "use client";
 // 시작 화면 (PLAN.md 작업 12, DESIGN.md 1.1)
 // 대결 거리, 평소 페이스, 중계 강도를 정하고 레이스 화면으로 보낸다.
-// 매칭된 상대 칸은 지금은 "페이스가 가장 가까운 기록"을 임시로 보여 준다. 역전 예측 매칭은 작업 13에서 만든다.
+// 매칭된 상대 칸은 역전 예측 매칭(작업 13)의 결과를 보여 준다. 역전이 "예상"된다는 뜻이지 보장은 아니다.
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { INTENSITY_LABEL, type Intensity } from "@/lib/output/voice-policy";
@@ -10,12 +10,11 @@ import {
   DEFAULT_RACE_SETTINGS,
   formatPace,
   parsePaceInput,
-  pickInterimOpponent,
+  matchForSettings,
   RACE_DISTANCES_M,
   settingsToQuery,
   type RaceDistanceM,
 } from "@/lib/race-settings";
-import { getOpponentRecords } from "@/lib/runners";
 
 /** 화면에서 고르는 중계 강도 (끄기는 실험용이라 따로 둔다) */
 const MAIN_INTENSITIES: Intensity[] = ["minimal", "normal", "active"];
@@ -39,10 +38,11 @@ export default function StartScreen() {
   const pace = useMemo(() => parsePaceInput(minutes, seconds), [minutes, seconds]);
   const intensity: Intensity = muted ? "off" : mainIntensity;
 
-  const opponent = useMemo(
-    () => (pace.ok ? pickInterimOpponent(getOpponentRecords(), pace.paceSecPerKm, distanceM) : null),
+  const match = useMemo(
+    () => (pace.ok ? matchForSettings({ distanceM, paceSecPerKm: pace.paceSecPerKm, intensity: "normal" }) : null),
     [pace, distanceM],
   );
+  const opponent = match?.opponent ?? null;
 
   const start = () => {
     if (!pace.ok) return;
@@ -149,9 +149,14 @@ export default function StartScreen() {
                 {opponent.id} <span className="rounded bg-foreground/10 px-1.5 py-0.5 text-xs">{OPPONENT_SOURCE_LABEL[opponent.source]}</span>
               </p>
               <p className="text-xs text-foreground/60">
-                평균 페이스 {formatPace(averagePaceSecPerKm(opponent))} /km · 임시 매칭: 페이스가 가장 가까운 기록입니다 (역전이
-                일어날 상대를 고르는 매칭은 아직 만들지 않았어요)
+                평균 페이스 {formatPace(averagePaceSecPerKm(opponent))} /km
+                {match?.kind === "reversal"
+                  ? ` · 이 대결에서 역전이 ${match.forecast.count}번쯤 예상돼요`
+                  : ""}
               </p>
+              {match?.kind === "closest" && (
+                <p className="text-xs text-foreground/60">조건에 맞는 상대가 없어 가장 가까운 기록으로 매칭했어요</p>
+              )}
             </>
           ) : (
             <p className="text-sm text-foreground/60">{pace.ok ? "맞는 상대 기록이 없어요" : "페이스를 올바르게 적으면 상대가 보여요"}</p>
