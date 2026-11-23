@@ -6,6 +6,7 @@
 import type { Prediction } from "../engine/catchup";
 import type { RaceEvent } from "../engine/race-engine";
 import { WIN_STAGE_LABEL } from "../engine/winprob";
+import type { HapticStatus } from "./haptics";
 
 /** 레이스 시간(초)을 "m:ss"로 쓴다. 예: 754 → "12:34" */
 export function formatRaceClock(seconds: number): string {
@@ -99,6 +100,8 @@ export type LogEntry = Subtitle & {
   delayMs: number;
   /** 음성 상태 */
   voice: VoiceStatus;
+  /** 진동 상태 */
+  haptic: HapticStatus;
 };
 
 /** 이벤트로 로그 한 줄을 만든다. 음성 상태를 모르면 "말하지 않음(끄기)"으로 둔다 */
@@ -108,6 +111,7 @@ export function makeLogEntry(
   decidedAtMs: number,
   outputAtMs: number,
   voice: VoiceStatus = { state: "skipped", reason: "off" },
+  haptic: HapticStatus = { state: "skipped", reason: "none" },
 ): LogEntry {
   return {
     ...formatRaceEvent(event),
@@ -117,6 +121,7 @@ export function makeLogEntry(
     outputAtMs,
     delayMs: outputAtMs - decidedAtMs,
     voice,
+    haptic,
   };
 }
 
@@ -139,6 +144,7 @@ export function makePredictionLogEntry(
     outputAtMs,
     delayMs: outputAtMs - decidedAtMs,
     voice,
+    haptic: { state: "skipped", reason: "none" },
   };
 }
 

@@ -16,6 +16,7 @@ import { distanceBetweenM } from "@/lib/geo";
 import { createDemoInput, DEMO_SPEED } from "@/lib/input/demo-input";
 import { makeDemoTrack } from "@/lib/input/synthetic-track";
 import type { PositionSample } from "@/lib/input/types";
+import { createBrowserVibratorEnv, createVibrator, hapticPatternFor, type HapticStatus, type Vibrator } from "@/lib/output/haptics";
 import { createPhraseBook, type PhraseBook } from "@/lib/output/phrases";
 import { createBrowserSpeakerEnv, createSpeaker, type Speaker } from "@/lib/output/speaker";
 import {
@@ -35,6 +36,7 @@ import {
   createVoicePolicy,
   DEFAULT_INTENSITY,
   INTENSITY_LABEL,
+  intensityAllows,
   type Intensity,
   type VoicePolicy,
 } from "@/lib/output/voice-policy";
@@ -75,7 +77,7 @@ function useWakeLockSupported(): boolean {
 }
 
 /** 이 기기가 음성 읽기와 "다른 소리 낮추기(오디오 세션)"를 지원하는지 */
-function useVoiceSupport(): { speech: boolean; audioSession: boolean } {
+function useVoiceSupport(): { speech: boolean; audioSession: boolean; vibration: boolean } {
   const speech = useSyncExternalStore(
     () => () => {},
     () => "speechSynthesis" in window,
@@ -86,7 +88,12 @@ function useVoiceSupport(): { speech: boolean; audioSession: boolean } {
     () => "audioSession" in navigator,
     () => false,
   );
-  return { speech, audioSession };
+  const vibration = useSyncExternalStore(
+    () => () => {},
+    () => typeof navigator.vibrate === "function",
+    () => false,
+  );
+  return { speech, audioSession, vibration };
 }
 
 type WakeStatus = "waiting" | "on" | "off" | "denied";
@@ -112,6 +119,19 @@ function voiceLine(voice: VoiceStatus): string {
   }
 }
 
+/** 로그 한 줄의 진동 상태를 한 줄 글로. 진동이 없는 이벤트는 null(아무것도 쓰지 않는다) */
+function hapticLine(haptic: HapticStatus): string | null {
+  if (haptic.state === "sent") {
+    return `진동 ${Math.round(haptic.delayMs)}ms${haptic.delayMs > VOICE_DELAY_LIMIT_MS ? " ⚠ 3초 초과" : ""}`;
+  }
+  return {
+    none: null,
+    intensity: "진동 없음 (이 강도에서는 내지 않음)",
+    unsupported: "진동 없음 (이 기기는 진동을 지원하지 않음)",
+    failed: "진동 실패 (브라우저가 거절함)",
+  }[haptic.reason];
+}
+
 export default function RaceScreen() {
   const [phase, setPhase] = useState<"ready" | "running">("ready");
   const [intensity, setIntensity] = useState<Intensity>(DEFAULT_INTENSITY);
@@ -126,6 +146,8 @@ export default function RaceScreen() {
   const latestTick = useRef<RaceTick | null>(null);
   const speakerRef = useRef<Speaker | null>(null);
   const policyRef = useRef<VoicePolicy | null>(null);
+  const vibratorRef = useRef<Vibrator | null>(null);
+  const intensityRef = useRef<Intensity>(DEFAULT_INTENSITY);
   const bookRef = useRef<PhraseBook | null>(null);
 
   /** 이벤트와 예측을 자막으로 올리고, 말하기로 정해진 것은 소리로 읽는다 */
@@ -133,6 +155,7 @@ export default function RaceScreen() {
     const policy = policyRef.current;
     const book = bookRef.current;
     const speaker = speakerRef.current;
+    const vibrator = vibratorRef.current;
     if (!policy || !book) return;
 
     const entries: LogEntry[] = [];
@@ -145,16 +168,21 @@ export default function RaceScreen() {
     for (const event of events) {
       const id = nextLogId.current++;
       const decision = policy.decideEvent(event);
+      // 진동은 음성 간격과 상관없이, 중계 강도에 맞는 이벤트에서 바로 낸다. 끄기에서는 내지 않는다
+      const haptic: HapticStatus =
+        vibrator && intensityAllows(intensityRef.current, event)
+          ? vibrator.vibrate(event, decidedAtMs)
+          : { state: "skipped", reason: hapticPatternFor(event) ? "intensity" : "none" };
       if (decision.speak && speaker?.supported) {
         const text = book.forEvent(event);
-        entries.push(makeLogEntry(id, event, decidedAtMs, nowMs(), { state: "pending", text }));
+        entries.push(makeLogEntry(id, event, decidedAtMs, nowMs(), { state: "pending", text }, haptic));
         speak(id, text, decision.priority);
       } else {
         const voice: VoiceStatus = {
           state: "skipped",
           reason: decision.speak ? "unsupported" : decision.reason,
         };
-        entries.push(makeLogEntry(id, event, decidedAtMs, nowMs(), voice));
+        entries.push(makeLogEntry(id, event, decidedAtMs, nowMs(), voice, haptic));
       }
     }
 
@@ -173,6 +201,7 @@ export default function RaceScreen() {
   // 중계 강도를 바꾸면 정책에도 바로 알린다
   useEffect(() => {
     policyRef.current?.setIntensity(intensity);
+    intensityRef.current = intensity;
   }, [intensity]);
 
   // 데모 레이스 재생: 입력 → 엔진 → 화면과 소리. "소리 켜고 시작"을 누르면 시작한다
@@ -200,6 +229,7 @@ export default function RaceScreen() {
     return () => {
       input.stop();
       speakerRef.current?.cancel();
+      vibratorRef.current?.cancel();
     };
   }, [phase, outputMoments]);
 
@@ -246,6 +276,8 @@ export default function RaceScreen() {
     speaker.unlock();
     speakerRef.current = speaker;
     policyRef.current = createVoicePolicy({ intensity });
+    intensityRef.current = intensity;
+    vibratorRef.current = createVibrator(createBrowserVibratorEnv());
     bookRef.current = createPhraseBook();
     setPhase("running");
   };
@@ -306,6 +338,9 @@ export default function RaceScreen() {
           <p>이어폰을 끼고, 음악을 듣는다면 틀어 두세요. 이어폰의 외부 소리 듣기 모드를 켜고 뛰는 것을 권장합니다.</p>
           <p className="text-xs text-foreground/60">
             음성 중계: {voiceSupport.speech ? "이 기기에서 지원됩니다" : "이 기기에서는 지원되지 않습니다 (자막만 나옵니다)"}
+          </p>
+          <p className="text-xs text-foreground/60">
+            진동: {voiceSupport.vibration ? "이 기기에서 지원됩니다" : "이 기기에서는 지원되지 않습니다 (음성과 자막만 나옵니다)"}
           </p>
           <p className="text-xs text-foreground/60">
             음악 위에서 들리게 하기:{" "}
@@ -403,6 +438,7 @@ export default function RaceScreen() {
               </p>
               <p className="text-xs tabular-nums text-foreground/50">
                 판정 {formatRaceClock(entry.raceTimeSec)} · 자막 {entry.delayMs.toFixed(1)}ms · {voiceLine(entry.voice)}
+                {hapticLine(entry.haptic) ? ` · ${hapticLine(entry.haptic)}` : ""}
               </p>
             </li>
           ))}
