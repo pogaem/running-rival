@@ -7,11 +7,11 @@ import { listRecords, MAX_SHARED_RECORDS, removeRecord, submitRecord } from "./s
 import { createMemoryStore } from "./store";
 import { validateSubmission } from "./validate";
 
-/** 5km를 5:30/km로 달린 정상 기록 (250m마다 한 점) */
+/** 3km를 5:30/km로 달린 정상 기록 (250m마다 한 점) */
 function goodBody(overrides: Record<string, unknown> = {}) {
   const points = [];
-  for (let d = 0; d <= 5000; d += 250) points.push({ t: (d / 1000) * 330, d });
-  return { completedDistanceM: 5000, totalElevationGainM: 20, points, ...overrides };
+  for (let d = 0; d <= 3000; d += 250) points.push({ t: (d / 1000) * 330, d });
+  return { completedDistanceM: 3000, totalElevationGainM: 20, points, ...overrides };
 }
 
 describe("validateSubmission", () => {
@@ -34,16 +34,16 @@ describe("validateSubmission", () => {
   });
 
   it.each([
-    ["완주 거리가 3km·5km가 아님", { completedDistanceM: 4000 }],
+    ["완주 거리가 1km·3km가 아님", { completedDistanceM: 4000 }],
     ["점이 너무 적음", { points: [{ t: 0, d: 0 }] }],
-    ["첫 점이 0이 아님", { points: [{ t: 1, d: 0 }, { t: 100, d: 5000 }] }],
-    ["너무 빠름(시속 25km 초과)", { points: [{ t: 0, d: 0 }, { t: 100, d: 5000 }] }],
-    ["너무 느림", { points: [{ t: 0, d: 0 }, { t: 6000, d: 5000 }] }],
-    ["거리가 줄어듦", { points: [{ t: 0, d: 0 }, { t: 200, d: 600 }, { t: 400, d: 500 }, { t: 1650, d: 5000 }] }],
-    ["시간이 멈춤", { points: [{ t: 0, d: 0 }, { t: 0, d: 10 }, { t: 1650, d: 5000 }] }],
+    ["첫 점이 0이 아님", { points: [{ t: 1, d: 0 }, { t: 100, d: 3000 }] }],
+    ["너무 빠름(시속 25km 초과)", { points: [{ t: 0, d: 0 }, { t: 100, d: 3000 }] }],
+    ["너무 느림", { points: [{ t: 0, d: 0 }, { t: 3600, d: 3000 }] }],
+    ["거리가 줄어듦", { points: [{ t: 0, d: 0 }, { t: 200, d: 600 }, { t: 400, d: 500 }, { t: 990, d: 3000 }] }],
+    ["시간이 멈춤", { points: [{ t: 0, d: 0 }, { t: 0, d: 10 }, { t: 990, d: 3000 }] }],
     ["마지막 거리가 완주 거리와 다름", { points: [{ t: 0, d: 0 }, { t: 1500, d: 4500 }] }],
     ["고도가 비정상", { totalElevationGainM: 99999 }],
-    ["숫자가 아님", { points: [{ t: 0, d: 0 }, { t: "많이", d: 5000 }] }],
+    ["숫자가 아님", { points: [{ t: 0, d: 0 }, { t: "많이", d: 3000 }] }],
   ])("거절한다: %s", (_name, override) => {
     expect(validateSubmission(goodBody(override)).ok).toBe(false);
   });
@@ -79,7 +79,7 @@ describe("서비스", () => {
     expect(await submitRecord(store, goodBody({ completedDistanceM: 1 }))).toMatchObject({ ok: false, status: 400 });
     const full = createMemoryStore(
       Array.from({ length: MAX_SHARED_RECORDS }, (_, i) => ({
-        record: { id: `러너-${i}`, source: "shared" as const, registrationOrder: 200 + i, completedDistanceM: 5000, totalElevationGainM: null, points: [] },
+        record: { id: `러너-${i}`, source: "shared" as const, registrationOrder: 200 + i, completedDistanceM: 3000, totalElevationGainM: null, points: [] },
         tokenHash: "x",
       })),
     );

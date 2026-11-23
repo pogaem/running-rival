@@ -37,7 +37,7 @@ export type GapSnapshot = {
 export type RaceSetup = {
   /** 상대 기록 */
   opponent: RunRecord;
-  /** 대결 거리(미터): 3000 또는 5000 */
+  /** 대결 거리(미터): 1000 또는 3000 */
   raceDistanceM: number;
 };
 

@@ -7,9 +7,9 @@ import type { RunRecord } from "./record";
 import { getOpponentRecords } from "./runners";
 
 /** 고를 수 있는 대결 거리(미터) */
-export const RACE_DISTANCES_M = [3000, 5000] as const;
+export const RACE_DISTANCES_M = [1000, 3000] as const;
 export type RaceDistanceM = (typeof RACE_DISTANCES_M)[number];
-export const DEFAULT_RACE_DISTANCE_M: RaceDistanceM = 5000;
+export const DEFAULT_RACE_DISTANCE_M: RaceDistanceM = 1000;
 
 /** 입력할 수 있는 페이스 범위(초/km): 3:00 ~ 12:00 */
 export const MIN_PACE_SEC_PER_KM = 180;

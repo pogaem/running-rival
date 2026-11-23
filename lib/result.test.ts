@@ -12,7 +12,7 @@ import {
   type RaceSummary,
 } from "./result";
 
-const settings = { source: "demo", distanceM: 5000, paceSecPerKm: 320, intensity: "normal" } as const;
+const settings = { source: "demo", distanceM: 3000, paceSecPerKm: 320, intensity: "normal" } as const;
 const opponent = virtualRunners.find((r) => r.id === "가상러너-03")!;
 
 function makeSummary(partial: Partial<RaceSummary> = {}): RaceSummary {
@@ -59,7 +59,7 @@ describe("buildRaceSummary", () => {
       myElevationGainM: 12,
     })!;
     expect(summary).toMatchObject({ won: true, myTimeSec: 1600, myElevationGainM: 12, opponent: { id: "가상러너-03", elevationGainM: 40 } });
-    expect(summary.opponentTimeSec).toBeCloseTo(1650, 0); // 5:30/km × 5km
+    expect(summary.opponentTimeSec).toBeCloseTo(943, 0); // 상대 기록에서 3km 지점에 닿는 시간
     expect(summary.reversals).toEqual([
       { t: 700, type: "overtake" },
       { t: 900, type: "overtaken" },
@@ -88,9 +88,9 @@ describe("serializeSummary · parseSummary", () => {
 
 describe("describeElevation · formatMargin", () => {
   it("고도 글", () => {
-    expect(describeElevation(null, 5000)).toBe("고도 정보 없음");
-    expect(describeElevation(3.2, 5000)).toBe("평지 (+3m)");
-    expect(describeElevation(40, 5000)).toBe("오르막 +40m");
+    expect(describeElevation(null, 3000)).toBe("고도 정보 없음");
+    expect(describeElevation(3.2, 3000)).toBe("평지 (+3m)");
+    expect(describeElevation(40, 3000)).toBe("오르막 +40m");
     expect(describeElevation(12, 3000)).toBe("평지 (+12m)"); // 1km당 4m
     expect(describeElevation(30, 3000)).toBe("오르막 +30m"); // 1km당 10m
   });

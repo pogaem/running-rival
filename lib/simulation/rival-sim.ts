@@ -113,7 +113,7 @@ export type SimResult = {
 
 export function runSimulation(partial: Partial<SimOptions> = {}): SimResult {
   const options: SimOptions = { ...DEFAULT_SIM_OPTIONS, ...partial };
-  const distances = options.distancesM ?? [3000, 5000];
+  const distances = options.distancesM ?? [1000, 3000];
   const diffs: number[] = [];
   const A = { rev: 0, withRev: 0, paceDiff: 0 };
   const B = { rev: 0, withRev: 0, paceDiff: 0 };

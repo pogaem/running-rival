@@ -4,7 +4,7 @@
 import type { DistancePoint } from "../record";
 
 /** 공유할 수 있는 완주 거리(m): 대결 거리와 같다 */
-export const SHARE_DISTANCES_M = [3000, 5000] as const;
+export const SHARE_DISTANCES_M = [1000, 3000] as const;
 export const MAX_SHARE_POINTS = 400;
 /** 평균 페이스가 이 범위(초/km) 밖이면 사람의 기록으로 보지 않는다 */
 export const MIN_PACE_SEC_PER_KM = 150;
@@ -31,7 +31,7 @@ export function validateSubmission(body: unknown): SubmissionResult {
 
   const distance = raw.completedDistanceM;
   if (typeof distance !== "number" || !(SHARE_DISTANCES_M as readonly number[]).includes(distance)) {
-    return fail("완주 거리는 3000 또는 5000이어야 합니다");
+    return fail("완주 거리는 1000 또는 3000이어야 합니다");
   }
 
   const elevation = raw.totalElevationGainM;

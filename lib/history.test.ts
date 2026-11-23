@@ -11,7 +11,7 @@ import {
   serializeHistory,
 } from "./history";
 
-const race = { opponentId: "가상러너-03", distanceM: 5000 as const, won: true, myTimeSec: 1600 };
+const race = { opponentId: "가상러너-03", distanceM: 1000 as const, won: true, myTimeSec: 1600 };
 
 describe("recordRace", () => {
   it("첫 경기는 전적과 최고 기록이 생긴다", () => {
@@ -19,7 +19,7 @@ describe("recordRace", () => {
     expect(out.rival).toEqual({ wins: 1, losses: 0, lastWon: true });
     expect(out.newBest).toBe(true);
     expect(out.previousBestSec).toBeNull();
-    expect(out.history.bests["5000"]).toBe(1600);
+    expect(out.history.bests["1000"]).toBe(1600);
   });
 
   it("승패를 쌓고, 더 느린 기록은 최고 기록을 바꾸지 않는다", () => {
@@ -27,18 +27,18 @@ describe("recordRace", () => {
     const second = recordRace(first, { ...race, won: false, myTimeSec: 1700 });
     expect(second.rival).toEqual({ wins: 1, losses: 1, lastWon: false });
     expect(second.newBest).toBe(false);
-    expect(second.history.bests["5000"]).toBe(1600);
+    expect(second.history.bests["1000"]).toBe(1600);
     const third = recordRace(second.history, { ...race, myTimeSec: 1550 });
     expect(third.newBest).toBe(true);
     expect(third.previousBestSec).toBe(1600);
-    expect(third.history.bests["5000"]).toBe(1550);
+    expect(third.history.bests["1000"]).toBe(1550);
   });
 
   it("거리별로 따로 기록하고, 받은 기록은 바꾸지 않는다", () => {
     const base = recordRace(EMPTY_HISTORY, race).history;
     const snapshot = JSON.stringify(base);
     const out = recordRace(base, { ...race, distanceM: 3000, myTimeSec: 900, opponentId: "가상러너-01" });
-    expect(out.history.bests).toEqual({ "5000": 1600, "3000": 900 });
+    expect(out.history.bests).toEqual({ "1000": 1600, "3000": 900 });
     expect(JSON.stringify(base)).toBe(snapshot);
   });
 });
@@ -56,12 +56,12 @@ describe("저장·읽기", () => {
     const mixed = JSON.stringify({
       version: 1,
       rivals: { a: { wins: 1, losses: 0, lastWon: true }, b: { wins: "많이" } },
-      bests: { "5000": 1500, "3000": -3 },
+      bests: { "1000": 1500, "3000": -3 },
     });
     expect(parseHistory(mixed)).toEqual({
       version: 1,
       rivals: { a: { wins: 1, losses: 0, lastWon: true } },
-      bests: { "5000": 1500 },
+      bests: { "1000": 1500 },
     });
   });
 });
@@ -82,7 +82,7 @@ describe("중계에 쓰는 글", () => {
     expect(describeNewBest(1512, 1563)).toBe("개인 최고 기록 갱신! 25:12 (이전 26:03)");
     expect(describeNewBest(900, null)).toContain("첫 기록");
     const history = recordRace(EMPTY_HISTORY, race).history;
-    expect(bestPaceSecPerKm(history, 5000)).toBe(320);
+    expect(bestPaceSecPerKm(history, 1000)).toBe(1600);
     expect(bestPaceSecPerKm(history, 3000)).toBeNull();
   });
 });
