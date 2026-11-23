@@ -141,13 +141,13 @@ export type GraphGeometry = {
 
 /**
  * 격차 그래프의 좌표를 계산한다. 위쪽이 "내가 앞", 아래쪽이 "상대가 앞"이다.
- * 격차 범위는 데이터에 맞추되 최소 ±20m를 보장해서 작은 격차가 과장돼 보이지 않게 한다.
+ * 격차 범위는 데이터에 맞추되 최소 ±5m를 보장해서 작은 격차가 과장돼 보이지 않게 한다.
  */
 export function computeGraphGeometry(summary: RaceSummary, width: number, height: number): GraphGeometry {
   const { gapSeries } = summary;
   const lastT = Math.max(summary.myTimeSec, gapSeries[gapSeries.length - 1]?.t ?? 0, 1);
   const maxGap = gapSeries.reduce((max, point) => Math.max(max, Math.abs(point.gapM)), 0);
-  const rangeM = Math.max(20, Math.ceil(maxGap / 10) * 10);
+  const rangeM = Math.max(5, Math.ceil(maxGap / 5) * 5);
   const x = (t: number) => (Math.min(Math.max(t, 0), lastT) / lastT) * width;
   const y = (gapM: number) => height / 2 - (Math.max(-rangeM, Math.min(rangeM, gapM)) / rangeM) * (height / 2);
   return {

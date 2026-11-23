@@ -48,8 +48,8 @@ function AnalysisSheet({ summary, onClose }: { summary: RaceSummary; onClose: ()
   const path = g.line.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
   const lines = buildAnalysis(summary);
   return (
-    <div className="absolute inset-0 z-20 flex items-end bg-black/60" role="dialog" aria-label="상세 분석" onClick={onClose}>
-      <div className="glass w-full max-h-[85%] overflow-y-auto !rounded-b-none bg-[#10131a]/95 p-4" onClick={(e) => e.stopPropagation()}>
+    <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-label="상세 분석" onClick={onClose}>
+      <div className="glass w-full max-h-[88%] overflow-y-auto bg-[#10131a]/95 p-5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold">상세 분석</h2>
           <button type="button" onClick={onClose} className="btn-secondary !px-3 !py-1 text-xs">닫기</button>
@@ -57,6 +57,8 @@ function AnalysisSheet({ summary, onClose }: { summary: RaceSummary; onClose: ()
         <p className="mt-3 text-xs text-white/55">시간대별 격차 (위쪽이 내가 앞, 최대 ±{g.rangeM}m)</p>
         <svg viewBox={`0 0 ${W} ${H}`} className="mt-1 w-full" role="img" aria-label="시간대별 격차 그래프">
           <line x1="0" x2={W} y1={g.zeroY} y2={g.zeroY} stroke="rgba(255,255,255,0.3)" strokeDasharray="4 4" />
+          <text x="4" y="12" fontSize="10" fill="rgba(255,255,255,0.55)">내가 앞</text>
+          <text x="4" y={H - 4} fontSize="10" fill="rgba(255,255,255,0.55)">상대가 앞</text>
           <path d={path} fill="none" stroke="#facc15" strokeWidth="2.5" strokeLinejoin="round" />
           {g.markers.map((m, i) => (
             <circle key={i} cx={m.x} cy={g.zeroY} r="4" fill={m.type === "overtake" ? "#34d399" : "#f87171"} />

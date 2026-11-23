@@ -112,8 +112,8 @@ describe("computeGraphGeometry", () => {
     expect(geometry.line[geometry.line.length - 1].x).toBe(300); // 끝은 오른쪽 끝
   });
 
-  it("격차 범위는 최소 ±20m이고 데이터가 크면 넓어진다", () => {
-    expect(computeGraphGeometry(makeSummary({ gapSeries: [{ t: 0, gapM: 5 }] }), 100, 50).rangeM).toBe(20);
+  it("격차 범위는 최소 ±5m이고 데이터가 크면 넓어진다", () => {
+    expect(computeGraphGeometry(makeSummary({ gapSeries: [{ t: 0, gapM: 2 }] }), 100, 50).rangeM).toBe(5);
     expect(computeGraphGeometry(makeSummary(), 100, 50).rangeM).toBe(60);
   });
 

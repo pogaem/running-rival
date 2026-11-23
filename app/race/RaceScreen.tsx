@@ -25,6 +25,7 @@ import { makeStraightTrack } from "@/lib/input/synthetic-track";
 import { createTrackRecorder } from "@/lib/track-recorder";
 import { useOpponentPool } from "../useOpponentPool";
 import { createInterruptionTracker } from "@/lib/input/interruption";
+import { detectDeviceEnv, ENV_LABEL, LOCATION_GUIDE, type DeviceEnv } from "@/lib/device";
 import { loadHistoryText, parseHistory, recordRace, rivalryIntro, saveHistory } from "@/lib/history";
 import { freshRaceHref, matchForSettings, settingsFromQuery } from "@/lib/race-settings";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -161,6 +162,14 @@ function RaceScreenInner() {
   const [gpsError, setGpsError] = useState<InputError | null>(null);
   /** 준비 화면에서 확인하는 위치 권한 상태 */
   const [locPerm, setLocPerm] = useState<"checking" | "granted" | "denied" | "unavailable">("checking");
+  /** 위치 켜는 방법 안내: 기본은 접속한 기기에 맞는 것, 직접 바꿔 볼 수도 있다 */
+  const [guideEnv, setGuideEnv] = useState<DeviceEnv | null>(null);
+  const detectedEnv = useSyncExternalStore(
+    () => () => {},
+    () => detectDeviceEnv(navigator.userAgent),
+    () => "other" as DeviceEnv,
+  );
+  const activeGuide = guideEnv ?? detectedEnv;
   /** 위치 권한을 요청한다. 처음이면 브라우저가 허용 창을 띄운다 */
   const askLocation = useCallback(() => {
     if (typeof navigator === "undefined" || !("geolocation" in navigator)) {
@@ -375,7 +384,7 @@ function RaceScreenInner() {
         const finish = result.events.find((event) => event.type === "finish");
         if (finish && finish.type === "finish" && !summarySaved) {
           summarySaved = true;
-          appendGapPoint(gapSeries, { t: raceTimeSec, gapM: result.snapshot.gapM }, 0);
+          // 결승 순간의 격차는 두 러너 모두 결승선 위치로 막혀 0이 되어 그래프 끝이 튀므로 넣지 않는다
           const summary = buildRaceSummary({
             settings,
             opponent,
@@ -590,9 +599,26 @@ function RaceScreenInner() {
                   <p className="text-red-300">
                     {locPerm === "denied" ? "위치가 꺼져 있어요." : "이 기기는 위치를 지원하지 않아요."}
                   </p>
-                  <p className="text-white/60">
-                    아이폰: 설정 → 개인정보 보호 및 보안 → 위치 서비스 → Safari 웹사이트 → &ldquo;앱을 사용하는 동안&rdquo;으로 바꾸거나, 주소창 왼쪽 &ldquo;aA&rdquo; → 웹사이트 설정 → 위치 → 허용
-                  </p>
+                  <details className="text-white/70">
+                    <summary className="cursor-pointer underline">위치 켜는 방법 보기</summary>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {(Object.keys(ENV_LABEL) as DeviceEnv[]).map((key) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setGuideEnv(key)}
+                          className={`rounded-full border px-2.5 py-1 ${activeGuide === key ? "border-white bg-white text-[#0a0c12]" : "border-white/25"}`}
+                        >
+                          {ENV_LABEL[key]}
+                        </button>
+                      ))}
+                    </div>
+                    <ol className="mt-2 list-decimal space-y-1 pl-4">
+                      {LOCATION_GUIDE[activeGuide].map((step) => (
+                        <li key={step}>{step}</li>
+                      ))}
+                    </ol>
+                  </details>
                   <button
                     type="button"
                     onClick={() => {
