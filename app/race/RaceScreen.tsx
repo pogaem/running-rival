@@ -14,6 +14,7 @@ import { displayPercent, WIN_STAGE_LABEL } from "@/lib/engine/winprob";
 import { distanceBetweenM } from "@/lib/geo";
 import { createDemoInput, DEMO_SPEED } from "@/lib/input/demo-input";
 import { createBrowserGpsEnv, createGpsInput } from "@/lib/input/gps-input";
+import { createPositionFilter } from "@/lib/input/gps-filter";
 import type { InputError, PositionInput } from "@/lib/input/types";
 import { makeStraightTrack } from "@/lib/input/synthetic-track";
 import { matchForSettings, settingsFromQuery, settingsToQuery } from "@/lib/race-settings";
@@ -129,6 +130,7 @@ export default function RaceScreen() {
   // 실제 GPS일 때: 마지막 위치 정확도(m)와 위치 오류
   const [gpsAccuracyM, setGpsAccuracyM] = useState<number | null>(null);
   const [gpsError, setGpsError] = useState<InputError | null>(null);
+  const [gpsRejected, setGpsRejected] = useState(0); // 보정에서 걸러 낸 점의 수
   const [wake, setWake] = useState<WakeStatus>("waiting");
   const wakeSupported = useWakeLockSupported();
   const voiceSupport = useVoiceSupport();
@@ -203,10 +205,19 @@ export default function RaceScreen() {
         ? createGpsInput(createBrowserGpsEnv())
         : createDemoInput(makeStraightTrack({ paceSecPerKm: settings.paceSecPerKm, distanceM: raceDistanceM }));
     let previous: PositionSample | null = null;
-    let traveled = 0; // 누적 거리. GPS 보정(튀는 값 제거)은 작업 15에서 만든다. 지금은 받은 값을 그대로 더한다
+    let traveled = 0; // 누적 거리. 실제 GPS는 보정(정확도 나쁜 점·순간 이동 제거, 이동 평균)을 거친 점만 더한다
+    const filter = settings.source === "gps" ? createPositionFilter() : null; // 데모 경로는 깨끗해서 보정이 필요 없다
 
     input.start({
-      onSample: (sample) => {
+      onSample: (rawSample) => {
+        let sample = rawSample;
+        if (filter) {
+          const filtered = filter.push(rawSample);
+          setGpsAccuracyM(rawSample.accuracyM);
+          setGpsRejected(filter.rejected.accuracy + filter.rejected.speed);
+          if (!filtered.accepted) return; // 버린 점은 거리에도 엔진에도 넣지 않는다
+          sample = filtered.sample;
+        }
         if (previous) traveled += distanceBetweenM(previous, sample);
         previous = sample;
 
@@ -216,7 +227,6 @@ export default function RaceScreen() {
         setTick(result);
         outputMoments(result.events, result.prediction, sample.t, decidedAtMs);
         if (settings.source === "gps") {
-          setGpsAccuracyM(sample.accuracyM);
           setGpsError(null);
           if (result.finished) {
             input.stop(); // 결승선을 지나면 위치 추적을 끈다
@@ -424,7 +434,10 @@ export default function RaceScreen() {
           ) : gpsAccuracyM === null ? (
             <p className="text-foreground/70">위치 신호를 기다리는 중…</p>
           ) : (
-            <p className="text-foreground/70">위치 정확도 약 ±{Math.round(gpsAccuracyM)}m</p>
+            <p className="text-foreground/70">
+              위치 정확도 약 ±{Math.round(gpsAccuracyM)}m
+              {gpsRejected > 0 ? ` · 튀는 위치 ${gpsRejected}개는 걸러 냈어요` : ""}
+            </p>
           )}
         </section>
       )}
