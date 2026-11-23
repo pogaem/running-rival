@@ -13,10 +13,9 @@ import {
   DEFAULT_RACE_SETTINGS,
   formatPace,
   parsePaceInput,
+  parseDistanceInput,
   matchForSettings,
-  RACE_DISTANCES_M,
   settingsToQuery,
-  type RaceDistanceM,
   type RaceSource,
 } from "@/lib/race-settings";
 
@@ -40,29 +39,31 @@ export default function StartScreen() {
   const router = useRouter();
   const historyText = useHistoryText();
   const history = useMemo(() => parseHistory(historyText), [historyText]);
-  const [distanceM, setDistanceM] = useState<RaceDistanceM>(DEFAULT_RACE_SETTINGS.distanceM);
+  const [distanceText, setDistanceText] = useState(String(DEFAULT_RACE_SETTINGS.distanceM / 1000));
   const [minutes, setMinutes] = useState(String(Math.floor(DEFAULT_RACE_SETTINGS.paceSecPerKm / 60)));
   const [seconds, setSeconds] = useState(String(DEFAULT_RACE_SETTINGS.paceSecPerKm % 60).padStart(2, "0"));
   const [mainIntensity, setMainIntensity] = useState<Intensity>(DEFAULT_RACE_SETTINGS.intensity);
   const [muted, setMuted] = useState(false); // 실험용 중계 끄기
 
   const pace = useMemo(() => parsePaceInput(minutes, seconds), [minutes, seconds]);
+  const distance = useMemo(() => parseDistanceInput(distanceText), [distanceText]);
+  const distanceM = distance.ok ? distance.distanceM : DEFAULT_RACE_SETTINGS.distanceM;
   const intensity: Intensity = muted ? "off" : mainIntensity;
 
   const pool = useOpponentPool();
   const match = useMemo(
     () =>
-      pace.ok
+      pace.ok && distance.ok
         ? matchForSettings({ source: "gps", distanceM, paceSecPerKm: pace.paceSecPerKm, intensity: "normal" }, pool.records)
         : null,
-    [pace, distanceM, pool.records],
+    [pace, distance, distanceM, pool.records],
   );
   const opponent = match?.opponent ?? null;
   const rivalRecord = opponent ? formatRivalRecord(history.rivals[opponent.id]) : null;
   const bestPace = bestPaceSecPerKm(history, distanceM);
 
   const start = (source: RaceSource) => {
-    if (!pace.ok) return;
+    if (!pace.ok || !distance.ok) return;
     router.push(`/race?${settingsToQuery({ source, distanceM, paceSecPerKm: pace.paceSecPerKm, intensity, opponentId: opponent?.id })}`);
   };
 
@@ -76,20 +77,22 @@ export default function StartScreen() {
       <section aria-label="대결 설정" className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
           <h2 className="text-sm font-semibold">대결 거리</h2>
-          <div role="radiogroup" aria-label="대결 거리" className="grid grid-cols-2 gap-2">
-            {RACE_DISTANCES_M.map((option) => (
-              <button
-                key={option}
-                type="button"
-                role="radio"
-                aria-checked={distanceM === option}
-                onClick={() => setDistanceM(option)}
-                className={choiceClass(distanceM === option)}
-              >
-                {option / 1000}km
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <input
+              aria-label="대결 거리(km)"
+              inputMode="decimal"
+              maxLength={4}
+              value={distanceText}
+              onChange={(event) => setDistanceText(event.target.value)}
+              className="w-24 rounded-lg border border-foreground/30 bg-transparent px-3 py-2 text-center text-lg tabular-nums"
+            />
+            <span className="text-sm">km (0.5 ~ 5)</span>
           </div>
+          {!distance.ok && (
+            <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+              {distance.message}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col gap-2">
@@ -187,7 +190,7 @@ export default function StartScreen() {
               )}
             </>
           ) : (
-            <p className="text-sm text-foreground/60">{pace.ok ? "맞는 상대 기록이 없어요" : "페이스를 올바르게 적으면 상대가 보여요"}</p>
+            <p className="text-sm text-foreground/60">{pace.ok && distance.ok ? "맞는 상대 기록이 없어요" : "거리와 페이스를 올바르게 적으면 상대가 보여요"}</p>
           )}
         </div>
       </section>
@@ -198,7 +201,7 @@ export default function StartScreen() {
         <button
           type="button"
           onClick={() => start("gps")}
-          disabled={!pace.ok || !opponent}
+          disabled={!pace.ok || !distance.ok || !opponent}
           className="rounded-lg bg-foreground px-4 py-3 text-center font-semibold text-background disabled:opacity-40"
         >
           대결 시작 (실제 GPS)
@@ -206,7 +209,7 @@ export default function StartScreen() {
         <button
           type="button"
           onClick={() => start("demo")}
-          disabled={!pace.ok || !opponent}
+          disabled={!pace.ok || !distance.ok || !opponent}
           className="rounded-lg border border-foreground/30 px-4 py-2 text-center text-sm disabled:opacity-40"
         >
           데모로 체험하기 (달리지 않고 10배속)

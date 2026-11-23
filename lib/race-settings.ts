@@ -6,10 +6,26 @@ import { matchOpponent, type MatchResult } from "./matching/match";
 import type { RunRecord } from "./record";
 import { getOpponentRecords } from "./runners";
 
-/** 고를 수 있는 대결 거리(미터) */
-export const RACE_DISTANCES_M = [1000, 3000] as const;
-export type RaceDistanceM = (typeof RACE_DISTANCES_M)[number];
+/** 직접 입력할 수 있는 대결 거리 범위(미터). 상대 기록(가상 러너)이 5km까지라서 5km가 상한이다 */
+export const MIN_RACE_DISTANCE_M = 500;
+export const MAX_RACE_DISTANCE_M = 5000;
+/** 입력한 거리는 100m 단위로 맞춘다 */
+const DISTANCE_STEP_M = 100;
+export type RaceDistanceM = number;
 export const DEFAULT_RACE_DISTANCE_M: RaceDistanceM = 1000;
+
+export type DistanceParse = { ok: true; distanceM: number } | { ok: false; message: string };
+
+/** "2.5", "2,5" 같은 km 입력 글을 미터로 바꾼다. 잘못된 입력은 이유를 한국어로 돌려준다 */
+export function parseDistanceInput(kmText: string): DistanceParse {
+  const text = kmText.trim().replace(",", ".");
+  if (!/^\d{1,2}(\.\d{1,2})?$/.test(text)) return { ok: false, message: "거리는 km 숫자로 적어 주세요 (예: 2.5)" };
+  const distanceM = Math.round((Number(text) * 1000) / DISTANCE_STEP_M) * DISTANCE_STEP_M;
+  if (distanceM < MIN_RACE_DISTANCE_M || distanceM > MAX_RACE_DISTANCE_M) {
+    return { ok: false, message: `거리는 ${MIN_RACE_DISTANCE_M / 1000}km ~ ${MAX_RACE_DISTANCE_M / 1000}km 사이로 적어 주세요` };
+  }
+  return { ok: true, distanceM };
+}
 
 /** 입력할 수 있는 페이스 범위(초/km): 3:00 ~ 20:00 */
 export const MIN_PACE_SEC_PER_KM = 180;
@@ -86,9 +102,10 @@ export function settingsFromQuery(get: (key: string) => string | null | undefine
   const intensity = get("i");
   return {
     source: get("m") === "gps" ? "gps" : "demo",
-    distanceM: (RACE_DISTANCES_M as readonly number[]).includes(distance)
-      ? (distance as RaceDistanceM)
-      : DEFAULT_RACE_SETTINGS.distanceM,
+    distanceM:
+      Number.isFinite(distance) && distance >= MIN_RACE_DISTANCE_M && distance <= MAX_RACE_DISTANCE_M
+        ? Math.round(distance)
+        : DEFAULT_RACE_SETTINGS.distanceM,
     paceSecPerKm:
       Number.isFinite(pace) && pace >= MIN_PACE_SEC_PER_KM && pace <= MAX_PACE_SEC_PER_KM
         ? Math.round(pace)

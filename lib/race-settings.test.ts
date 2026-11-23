@@ -5,6 +5,7 @@ import {
   DEFAULT_RACE_SETTINGS,
   formatPace,
   parsePaceInput,
+  parseDistanceInput,
   matchForSettings,
   settingsFromQuery,
   settingsToQuery,
@@ -93,6 +94,23 @@ describe("matchForSettings (설정으로 상대 고르기)", () => {
         const match = matchForSettings({ source: "demo", distanceM, paceSecPerKm: pace, intensity: "normal" }, virtualRunners);
         expect(Math.abs(match!.paceDiffSecPerKm), `${distanceM}m ${pace}초/km`).toBeLessThanOrEqual(20);
       }
+    }
+  });
+});
+
+describe("parseDistanceInput (km 직접 입력)", () => {
+  it("km 숫자를 100m 단위 미터로 바꾼다", () => {
+    expect(parseDistanceInput("1")).toEqual({ ok: true, distanceM: 1000 });
+    expect(parseDistanceInput(" 2.5 ")).toEqual({ ok: true, distanceM: 2500 });
+    expect(parseDistanceInput("3,2")).toEqual({ ok: true, distanceM: 3200 });
+    expect(parseDistanceInput("0.5")).toEqual({ ok: true, distanceM: 500 });
+    expect(parseDistanceInput("5")).toEqual({ ok: true, distanceM: 5000 });
+    expect(parseDistanceInput("1.26")).toEqual({ ok: true, distanceM: 1300 });
+  });
+
+  it("숫자가 아니거나 0.5~5km 밖이면 이유를 알려 준다", () => {
+    for (const text of ["", "abc", "-1", "0.4", "5.1", "10", "1.2.3"]) {
+      expect(parseDistanceInput(text), text).toMatchObject({ ok: false });
     }
   });
 });

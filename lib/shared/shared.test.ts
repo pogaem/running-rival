@@ -34,7 +34,7 @@ describe("validateSubmission", () => {
   });
 
   it.each([
-    ["완주 거리가 1km·3km가 아님", { completedDistanceM: 4000 }],
+    ["완주 거리가 0.5~5km 밖", { completedDistanceM: 6000 }],
     ["점이 너무 적음", { points: [{ t: 0, d: 0 }] }],
     ["첫 점이 0이 아님", { points: [{ t: 1, d: 0 }, { t: 100, d: 3000 }] }],
     ["너무 빠름(시속 25km 초과)", { points: [{ t: 0, d: 0 }, { t: 100, d: 3000 }] }],

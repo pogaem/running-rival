@@ -3,8 +3,9 @@
 // 받아서 남기는 것은 "시간별 누적 거리"와 "총 상승 고도"뿐이다. 좌표·경로·날짜·이름은 받지도 않고 남기지도 않는다.
 import type { DistancePoint } from "../record";
 
-/** 공유할 수 있는 완주 거리(m): 대결 거리와 같다 */
-export const SHARE_DISTANCES_M = [1000, 3000] as const;
+/** 공유할 수 있는 완주 거리(m): 대결 거리 범위와 같다 */
+export const MIN_SHARE_DISTANCE_M = 500;
+export const MAX_SHARE_DISTANCE_M = 5000;
 export const MAX_SHARE_POINTS = 400;
 /** 평균 페이스가 이 범위(초/km) 밖이면 사람의 기록으로 보지 않는다 */
 export const MIN_PACE_SEC_PER_KM = 150;
@@ -30,8 +31,13 @@ export function validateSubmission(body: unknown): SubmissionResult {
   const raw = body as Record<string, unknown>;
 
   const distance = raw.completedDistanceM;
-  if (typeof distance !== "number" || !(SHARE_DISTANCES_M as readonly number[]).includes(distance)) {
-    return fail("완주 거리는 1000 또는 3000이어야 합니다");
+  if (
+    typeof distance !== "number" ||
+    !Number.isFinite(distance) ||
+    distance < MIN_SHARE_DISTANCE_M ||
+    distance > MAX_SHARE_DISTANCE_M
+  ) {
+    return fail("완주 거리는 500~5000이어야 합니다");
   }
 
   const elevation = raw.totalElevationGainM;
