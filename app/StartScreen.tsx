@@ -44,12 +44,11 @@ export default function StartScreen() {
   const [minutes, setMinutes] = useState(String(Math.floor(DEFAULT_RACE_SETTINGS.paceSecPerKm / 60)));
   const [seconds, setSeconds] = useState(String(DEFAULT_RACE_SETTINGS.paceSecPerKm % 60).padStart(2, "0"));
   const [mainIntensity, setMainIntensity] = useState<Intensity>(DEFAULT_RACE_SETTINGS.intensity);
-  const [muted, setMuted] = useState(false); // 실험용 중계 끄기
 
   const pace = useMemo(() => parsePaceInput(minutes, seconds), [minutes, seconds]);
   const distance = useMemo(() => parseDistanceInput(distanceText), [distanceText]);
   const distanceM = distance.ok ? distance.distanceM : DEFAULT_RACE_SETTINGS.distanceM;
-  const intensity: Intensity = muted ? "off" : mainIntensity;
+  const intensity: Intensity = mainIntensity;
 
   const pool = useOpponentPool();
   const match = useMemo(
@@ -163,26 +162,19 @@ export default function StartScreen() {
                 key={option}
                 type="button"
                 role="radio"
-                aria-checked={!muted && mainIntensity === option}
+                aria-checked={mainIntensity === option}
                 onClick={() => {
                   setMainIntensity(option);
-                  setMuted(false);
                 }}
-                className={choiceClass(!muted && mainIntensity === option)}
+                className={choiceClass(mainIntensity === option)}
               >
                 {INTENSITY_LABEL[option]}
               </button>
             ))}
           </div>
           <p className="text-xs leading-relaxed text-white/55">
-            최소는 추월·결승만, 일반은 출발·0.35km마다 중간 상황(앞서든 뒤처지든)·절반·마지막 200m·접전까지, 적극은 추월 예측과 승률 변화까지 말하되, 한마디 하고 쉬었다가 다음 말을 합니다.
+            최소는 출발·추월·접전·결승만, 일반은 거기에 0.3km마다 중간 상황(앞서든 뒤처지든)·절반·마지막 200m까지, 적극은 0.25km마다 중간 상황과 추월 예측·승률 변화까지 말하되, 한마디 하고 쉬었다가 다음 말을 합니다.
           </p>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={muted} onChange={(event) => setMuted(event.target.checked)} />
-            <span>
-              실험용 <b>중계 끄기</b> <span className="text-white/55">(음성·효과음 없이 기록만)</span>
-            </span>
-          </label>
         </div>
 
         <div className="glass flex flex-col gap-1.5 p-5" aria-label="매칭된 상대">

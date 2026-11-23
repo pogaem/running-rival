@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import type { Prediction } from "@/lib/engine/catchup";
 import type { RaceEvent, RaceTick } from "@/lib/engine/race-engine";
 import RouteMap, { type RouteMarker } from "../RouteMap";
-import { createRaceEngine } from "@/lib/engine/race-engine";
+import { ACTIVE_STATUS_INTERVAL_M, createRaceEngine, STATUS_INTERVAL_M } from "@/lib/engine/race-engine";
 import { displayPercent, WIN_STAGE_LABEL } from "@/lib/engine/winprob";
 import { distanceBetweenM } from "@/lib/geo";
 import { createDemoInput, DEMO_SPEED } from "@/lib/input/demo-input";
@@ -60,7 +60,7 @@ const GAP_BAR_RANGE_M = 50;
 const VOICE_DELAY_LIMIT_MS = 3000;
 
 /** 화면에 보여 줄 중계 강도 선택지 */
-const INTENSITY_OPTIONS: Intensity[] = ["off", "minimal", "normal", "active"];
+const INTENSITY_OPTIONS: Intensity[] = ["minimal", "normal", "active"];
 
 /** 자막 색 */
 const TONE_CLASS: Record<SubtitleTone, string> = {
@@ -164,6 +164,7 @@ export default function RaceScreen() {
   const speakerRef = useRef<Speaker | null>(null);
   const policyRef = useRef<VoicePolicy | null>(null);
   const sfxRef = useRef<Sfx | null>(null);
+  const engineRef = useRef<ReturnType<typeof createRaceEngine> | null>(null);
   const intensityRef = useRef<Intensity>(DEFAULT_INTENSITY);
   const bookRef = useRef<PhraseBook | null>(null);
 
@@ -215,6 +216,7 @@ export default function RaceScreen() {
   useEffect(() => {
     policyRef.current?.setIntensity(intensity);
     intensityRef.current = intensity;
+    engineRef.current?.setStatusIntervalM(intensity === "active" ? ACTIVE_STATUS_INTERVAL_M : STATUS_INTERVAL_M);
   }, [intensity]);
 
   // 데모 레이스 재생: 입력 → 엔진 → 화면과 소리. "소리 켜고 시작"을 누르면 시작한다
@@ -222,6 +224,8 @@ export default function RaceScreen() {
     if (phase !== "running") return;
     if (!opponent) return;
     const engine = createRaceEngine({ opponent, raceDistanceM });
+    engineRef.current = engine;
+    engine.setStatusIntervalM(intensityRef.current === "active" ? ACTIVE_STATUS_INTERVAL_M : STATUS_INTERVAL_M);
     // 데모: 입력한 평소 페이스로 일정하게 달리는 "만든 경로"를 10배속으로 재생한다.
     // GPS: 폰의 실제 위치를 받는다. 둘 다 같은 모양(PositionInput)이라 아래는 똑같이 동작한다
     const input: PositionInput =
@@ -448,7 +452,7 @@ export default function RaceScreen() {
   const finished = tick?.finished ?? false;
 
   const intensitySelector = (
-    <div role="radiogroup" aria-label="중계 강도" className="grid grid-cols-4 gap-2">
+    <div role="radiogroup" aria-label="중계 강도" className="grid grid-cols-3 gap-2">
       {INTENSITY_OPTIONS.map((option) => (
         <button
           key={option}

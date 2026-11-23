@@ -5,6 +5,7 @@
 // 브라우저 기능은 "환경(SfxEnv)"으로 받아서, 시험에서는 가짜 환경으로 소리 없이 동작을 확인한다.
 // 음원 출처와 라이선스는 public/sfx/CREDITS.md와 앱 화면의 "음원 출처"에 표기한다.
 import type { RaceEvent } from "../engine/race-engine";
+import { getSharedAudioContext } from "./audio-context";
 import { VOICE_VOLUME_CAP } from "./speaker";
 import { intensityAllows, type Intensity } from "./voice-policy";
 
@@ -152,10 +153,8 @@ export function createSfx(env: SfxEnv | null): Sfx {
 /** 실제 브라우저 환경(Web Audio). 브라우저에서만 부른다. 지원하지 않으면 null (그러면 효과음은 조용히 빠진다) */
 export function createBrowserSfxEnv(): SfxEnv | null {
   if (typeof window === "undefined") return null;
-  const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!Ctor) return null;
-  let context: AudioContext | null = null;
-  const getContext = () => (context ??= new Ctor());
+  if (!getSharedAudioContext()) return null;
+  const getContext = () => getSharedAudioContext()!;
   // 소리 잠금은 버튼을 누른 그 순간에 풀어야 한다(특히 아이폰). 이 함수는 "소리 켜고 시작" 버튼을 누를 때 불리므로 여기서 미리 만들고 깨운다
   void getContext().resume();
 

@@ -47,7 +47,7 @@ describe("중계 강도별로 말하는 이벤트 (DESIGN.md 이벤트 표)", ()
     결승: [false, true, true, true],
     "마지막 200m": [false, false, true, true],
     "1km 통과": [false, false, true, true],
-    접전: [false, false, true, true],
+    접전: [false, true, true, true],
     "승률 단계": [false, false, false, true],
   };
   const intensities: Intensity[] = ["off", "minimal", "normal", "active"];
@@ -60,7 +60,7 @@ describe("중계 강도별로 말하는 이벤트 (DESIGN.md 이벤트 표)", ()
 
   it("접전에서 벗어나는 이벤트는 접전과 같은 강도에서 말한다", () => {
     expect(intensityAllows("normal", { type: "closeLeave", t: 1, gapM: 16 })).toBe(true);
-    expect(intensityAllows("minimal", { type: "closeLeave", t: 1, gapM: 16 })).toBe(false);
+    expect(intensityAllows("minimal", { type: "closeLeave", t: 1, gapM: 16 })).toBe(true);
   });
 
   it("추월 예측은 적극에서만 말한다", () => {

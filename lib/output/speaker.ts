@@ -7,6 +7,8 @@
 // 이 파일은 화면 코드가 아니라 출력부다. 브라우저 기능은 모두 "환경(SpeakerEnv)"으로 받아서,
 // 시험에서는 가짜 환경을 끼워 소리 없이 동작을 확인할 수 있다.
 
+import { getSharedAudioContext } from "./audio-context";
+
 /** 소리 크기 상한(0~1). 어떤 경우에도 이보다 크게 읽지 않는다 (초안) */
 export const VOICE_VOLUME_CAP = 0.8;
 /** 읽는 속도 (1이 보통) */
@@ -43,6 +45,7 @@ export type UtteranceLike = {
 export type SpeechLike = {
   speak(utterance: UtteranceLike): void;
   cancel(): void;
+  resume?(): void;
   getVoices(): { lang: string }[];
 };
 
@@ -190,21 +193,13 @@ export function createBrowserSpeakerEnv(): SpeakerEnv {
   const audioSession =
     hasWindow && "audioSession" in navigator ? (navigator as unknown as { audioSession: AudioSessionLike }).audioSession : null;
 
-  const AudioContextCtor = hasWindow
-    ? (window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)
-    : undefined;
-  let context: AudioContext | null = null;
-  const getContext = () => {
-    if (!AudioContextCtor) return null;
-    context ??= new AudioContextCtor();
-    return context;
-  };
+  const getContext = () => getSharedAudioContext();
 
   return {
     speech: speech as unknown as SpeechLike | null,
     makeUtterance: (text) => new SpeechSynthesisUtterance(text) as unknown as UtteranceLike,
     audioSession,
-    playBeep: AudioContextCtor
+    playBeep: getSharedAudioContext()
       ? () => {
           const ctx = getContext();
           if (!ctx) return;
@@ -221,6 +216,9 @@ export function createBrowserSpeakerEnv(): SpeakerEnv {
       // 브라우저는 사용자가 누르기 전에는 소리를 막는다. 눌렀을 때 소리 장치를 깨워 둔다
       void getContext()?.resume();
       if (speech) {
+        // 이전 레이스에서 읽기가 멈춘 채 남아 있으면 새 멘트가 안 나오므로 비우고 깨운다
+        speech.cancel();
+        speech.resume?.();
         const warmUp = new SpeechSynthesisUtterance("");
         warmUp.volume = 0;
         speech.speak(warmUp);

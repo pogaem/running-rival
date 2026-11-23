@@ -36,7 +36,7 @@ describe("sfxActionFor (이벤트 → 효과음)", () => {
   it("접전에 들어오면 심장 박동을 켜고, 벗어나면 끈다 (일반 이상)", () => {
     expect(sfxActionFor(closeEnter, "normal")).toBe("heartbeatOn");
     expect(sfxActionFor(closeEnter, "active")).toBe("heartbeatOn");
-    expect(sfxActionFor(closeEnter, "minimal")).toBeNull();
+    expect(sfxActionFor(closeEnter, "minimal")).toBe("heartbeatOn"); // 최소도 접전은 말한다
     expect(sfxActionFor(closeLeave, "minimal")).toBe("heartbeatOff");
   });
 

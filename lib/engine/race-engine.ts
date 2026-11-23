@@ -30,7 +30,9 @@ export const CLOSE_LEAVE_M = 15;
 export const LAST_STRETCH_M = 200;
 /** 중간 상황(status)을 내보내는 거리 간격(미터). 앞서든 뒤처지든 내가 이만큼 달릴 때마다 중계한다.
  * 시간이 아니라 거리 기준이라 데모 배속이나 페이스에 상관없이 코스 위 같은 자리에서 중계가 나온다 */
-export const STATUS_INTERVAL_M = 350;
+export const STATUS_INTERVAL_M = 300;
+/** 적극 중계는 조금 더 자주(미터) */
+export const ACTIVE_STATUS_INTERVAL_M = 250;
 /** 결승선까지 이 거리(미터) 이하가 남으면 중간 상황은 더 말하지 않는다 (마지막 200m 멘트와 결승이 있다) */
 const STATUS_STOP_M = 40;
 /** 결승선에 닿았다고 보는 오차 범위(미터). 거리 계산의 아주 작은 오차를 감안한다 */
@@ -80,6 +82,8 @@ export type RaceTick = {
 export type RaceEngine = {
   /** 1초마다 레이스 시간과 나의 누적 거리를 알려 준다. 결승선을 통과한 뒤에는 이벤트 없이 마지막 결과를 그대로 돌려준다 */
   update(t: number, myDistanceM: number): RaceTick;
+  /** 중간 상황을 내보내는 거리 간격(미터)을 바꾼다. 중계 강도를 바꿀 때 쓴다 */
+  setStatusIntervalM(meters: number): void;
 };
 
 export function createRaceEngine(setup: RaceSetup): RaceEngine {
@@ -97,8 +101,12 @@ export function createRaceEngine(setup: RaceSetup): RaceEngine {
   let started = false;
   let halfSent = false;
   let lastStatusDistanceM = 0;
+  let statusIntervalM = STATUS_INTERVAL_M;
 
   return {
+    setStatusIntervalM(meters) {
+      if (meters > 0) statusIntervalM = meters;
+    },
     update(t, myDistanceM) {
       if (finishedTick) return { ...finishedTick, events: [] };
 
@@ -143,7 +151,7 @@ export function createRaceEngine(setup: RaceSetup): RaceEngine {
         halfSent = true;
         events.push({ type: "half", t, gapM: snapshot.gapM, remainingM: race - traveled });
       }
-      if (!arrived && traveled - lastStatusDistanceM >= STATUS_INTERVAL_M && race - traveled > STATUS_STOP_M) {
+      if (!arrived && traveled - lastStatusDistanceM >= statusIntervalM && race - traveled > STATUS_STOP_M) {
         lastStatusDistanceM = traveled;
         events.push({ type: "status", t, gapM: snapshot.gapM, remainingM: race - traveled });
       }

@@ -38,7 +38,7 @@ const PRIORITY_EVENTS: ReadonlySet<RaceEvent["type"]> = new Set(["overtake", "ov
 /** 강도별로 말하는 이벤트 (DESIGN.md 이벤트 표) */
 const EVENTS_BY_INTENSITY: Record<Intensity, ReadonlySet<RaceEvent["type"]>> = {
   off: new Set(),
-  minimal: new Set(["overtake", "overtaken", "finish"]),
+  minimal: new Set(["overtake", "overtaken", "finish", "start", "closeEnter", "closeLeave"]),
   normal: new Set(["overtake", "overtaken", "finish", "last200m", "km", "closeEnter", "closeLeave", "start", "half", "status"]),
   active: new Set([
     "overtake",
