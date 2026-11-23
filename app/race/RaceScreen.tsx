@@ -6,15 +6,17 @@
 // 브라우저는 사용자가 버튼을 누르기 전에는 소리를 막는다. 그래서 "소리 켜고 시작" 버튼을 누르면 레이스가 시작된다.
 // 효과음·진동은 작업 10·11에서 이 화면의 이벤트에 붙인다.
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Prediction } from "@/lib/engine/catchup";
 import type { RaceEvent, RaceTick } from "@/lib/engine/race-engine";
 import { createRaceEngine } from "@/lib/engine/race-engine";
 import { displayPercent, WIN_STAGE_LABEL } from "@/lib/engine/winprob";
-import { DEMO_RACE_DISTANCE_M, DEMO_RIVAL_ID, getDemoRaceSetup } from "@/lib/demo-race";
 import { distanceBetweenM } from "@/lib/geo";
 import { createDemoInput, DEMO_SPEED } from "@/lib/input/demo-input";
-import { makeDemoTrack } from "@/lib/input/synthetic-track";
+import { makeStraightTrack } from "@/lib/input/synthetic-track";
+import { pickInterimOpponent, settingsFromQuery } from "@/lib/race-settings";
+import { getOpponentRecords } from "@/lib/runners";
+import { useSearchParams } from "next/navigation";
 import type { PositionSample } from "@/lib/input/types";
 import { createBrowserVibratorEnv, createVibrator, hapticPatternFor, type HapticStatus, type Vibrator } from "@/lib/output/haptics";
 import { createBrowserSfxEnv, createSfx, type Sfx } from "@/lib/output/sfx";
@@ -135,7 +137,14 @@ function hapticLine(haptic: HapticStatus): string | null {
 
 export default function RaceScreen() {
   const [phase, setPhase] = useState<"ready" | "running">("ready");
-  const [intensity, setIntensity] = useState<Intensity>(DEFAULT_INTENSITY);
+  const searchParams = useSearchParams();
+  const settings = useMemo(() => settingsFromQuery((key) => searchParams.get(key)), [searchParams]);
+  const opponent = useMemo(
+    () => pickInterimOpponent(getOpponentRecords(), settings.paceSecPerKm, settings.distanceM),
+    [settings],
+  );
+  const raceDistanceM = settings.distanceM;
+  const [intensity, setIntensity] = useState<Intensity>(settings.intensity);
   const [tick, setTick] = useState<RaceTick | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [running, setRunning] = useState(true);
@@ -211,8 +220,12 @@ export default function RaceScreen() {
   // 데모 레이스 재생: 입력 → 엔진 → 화면과 소리. "소리 켜고 시작"을 누르면 시작한다
   useEffect(() => {
     if (phase !== "running") return;
-    const engine = createRaceEngine(getDemoRaceSetup());
-    const input = createDemoInput(makeDemoTrack());
+    if (!opponent) return;
+    const engine = createRaceEngine({ opponent, raceDistanceM });
+    // 내 위치는 입력한 평소 페이스로 일정하게 달리는 "만든 경로"다. 실제 GPS는 작업 14에서 같은 길로 붙인다
+    const input = createDemoInput(
+      makeStraightTrack({ paceSecPerKm: settings.paceSecPerKm, distanceM: raceDistanceM }),
+    );
     let previous: PositionSample | null = null;
     let traveled = 0; // 누적 거리. GPS 보정은 작업 15에서 만든다(데모 경로는 깨끗해서 필요 없다)
 
@@ -236,7 +249,7 @@ export default function RaceScreen() {
       vibratorRef.current?.cancel();
       sfxRef.current?.stopAll();
     };
-  }, [phase, outputMoments]);
+  }, [phase, outputMoments, opponent, raceDistanceM, settings.paceSecPerKm]);
 
   // 화면 꺼짐 방지: 레이스가 시작된 뒤 지원되는 기기에서만. 화면이 가려졌다 돌아오면 다시 건다
   useEffect(() => {
@@ -330,15 +343,14 @@ export default function RaceScreen() {
         <header className="pt-4">
           <h1 className="text-2xl font-bold">레이스</h1>
           <p className="mt-1 text-sm text-foreground/70">
-            데모 · {DEMO_SPEED}배속 · {DEMO_RIVAL_ID}(가상 러너) · {DEMO_RACE_DISTANCE_M / 1000}km
+            데모 · {DEMO_SPEED}배속 · {opponent?.id ?? "상대 없음"}({opponent?.source === "virtual" ? "가상 러너" : "기록"}) · {raceDistanceM / 1000}km · 내 페이스 {formatPace(settings.paceSecPerKm)}/km
           </p>
         </header>
 
         <section aria-label="준비" className="flex flex-col gap-3 rounded-lg border border-foreground/30 p-3">
-          <h2 className="text-sm font-semibold">중계 강도</h2>
-          {intensitySelector}
+          <h2 className="text-sm font-semibold">중계 강도: {INTENSITY_LABEL[intensity]}</h2>
           <p className="text-xs text-foreground/60">
-            최소는 추월·결승만, 일반은 1km 통과·마지막 200m·접전까지, 적극은 추월 예측과 승률 변화까지 말합니다.
+            시작 화면에서 정한 강도입니다. 최소는 추월·결승만, 일반은 1km 통과·마지막 200m·접전까지, 적극은 추월 예측과 승률 변화까지 말합니다.
           </p>
         </section>
 
@@ -398,14 +410,14 @@ export default function RaceScreen() {
       <header className="pt-4">
         <h1 className="text-2xl font-bold">레이스</h1>
         <p className="mt-1 text-sm text-foreground/70">
-          데모 · {DEMO_SPEED}배속 · {DEMO_RIVAL_ID}(가상 러너) · {DEMO_RACE_DISTANCE_M / 1000}km
+          데모 · {DEMO_SPEED}배속 · {opponent?.id ?? "상대 없음"}({opponent?.source === "virtual" ? "가상 러너" : "기록"}) · {raceDistanceM / 1000}km · 내 페이스 {formatPace(settings.paceSecPerKm)}/km
         </p>
       </header>
 
       <section aria-label="진행 상황" className="flex items-end justify-between">
         <p className="text-3xl font-bold tabular-nums">
           {(myDistance / 1000).toFixed(2)}
-          <span className="text-base font-normal text-foreground/70"> km / {DEMO_RACE_DISTANCE_M / 1000} km</span>
+          <span className="text-base font-normal text-foreground/70"> km / {raceDistanceM / 1000} km</span>
         </p>
         <p className="text-3xl font-bold tabular-nums">{formatRaceClock(tick?.t ?? 0)}</p>
       </section>
