@@ -2,6 +2,7 @@
 // 시작 화면 (PLAN.md 작업 12, DESIGN.md 1.1)
 // 대결 거리, 평소 페이스, 중계 강도를 정하고 레이스 화면으로 보낸다.
 // 매칭된 상대 칸은 역전 예측 매칭(작업 13)의 결과를 보여 준다. 역전이 "예상"된다는 뜻이지 보장은 아니다.
+import { useOpponentPool } from "./useOpponentPool";
 import { displayName } from "@/lib/runner-names";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
@@ -22,7 +23,7 @@ import {
 /** 화면에서 고르는 중계 강도 (끄기는 실험용이라 따로 둔다) */
 const MAIN_INTENSITIES: Intensity[] = ["minimal", "normal", "active"];
 
-const OPPONENT_SOURCE_LABEL = { virtual: "가상 러너", camp: "캠프 참가자", mine: "내 기록" } as const;
+const OPPONENT_SOURCE_LABEL = { virtual: "가상 러너", camp: "캠프 참가자", mine: "내 기록", shared: "다른 러너 기록" } as const;
 
 function choiceClass(selected: boolean) {
   return `rounded-lg border px-3 py-2 text-sm font-medium ${
@@ -48,9 +49,13 @@ export default function StartScreen() {
   const pace = useMemo(() => parsePaceInput(minutes, seconds), [minutes, seconds]);
   const intensity: Intensity = muted ? "off" : mainIntensity;
 
+  const pool = useOpponentPool();
   const match = useMemo(
-    () => (pace.ok ? matchForSettings({ source: "gps", distanceM, paceSecPerKm: pace.paceSecPerKm, intensity: "normal" }) : null),
-    [pace, distanceM],
+    () =>
+      pace.ok
+        ? matchForSettings({ source: "gps", distanceM, paceSecPerKm: pace.paceSecPerKm, intensity: "normal" }, pool.records)
+        : null,
+    [pace, distanceM, pool.records],
   );
   const opponent = match?.opponent ?? null;
   const rivalRecord = opponent ? formatRivalRecord(history.rivals[opponent.id]) : null;
@@ -58,7 +63,7 @@ export default function StartScreen() {
 
   const start = (source: RaceSource) => {
     if (!pace.ok) return;
-    router.push(`/race?${settingsToQuery({ source, distanceM, paceSecPerKm: pace.paceSecPerKm, intensity })}`);
+    router.push(`/race?${settingsToQuery({ source, distanceM, paceSecPerKm: pace.paceSecPerKm, intensity, opponentId: opponent?.id })}`);
   };
 
   return (
@@ -174,6 +179,9 @@ export default function StartScreen() {
                   : ""}
               </p>
               {rivalRecord && <p className="text-sm">라이벌 전적 {rivalRecord}</p>}
+              <p className="text-xs text-foreground/60">
+                {pool.ready ? `다른 러너가 공유한 기록 ${pool.sharedCount}개가 후보에 들어 있어요` : "공유 기록을 불러오는 중…"}
+              </p>
               {match?.kind === "closest" && (
                 <p className="text-xs text-foreground/60">조건에 맞는 상대가 없어 가장 가까운 기록으로 매칭했어요</p>
               )}

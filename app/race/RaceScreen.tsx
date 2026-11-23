@@ -21,6 +21,8 @@ import { createAutoPause } from "@/lib/input/auto-pause";
 import { createPositionFilter } from "@/lib/input/gps-filter";
 import type { InputError, PositionInput } from "@/lib/input/types";
 import { makeStraightTrack } from "@/lib/input/synthetic-track";
+import { createTrackRecorder } from "@/lib/track-recorder";
+import { useOpponentPool } from "../useOpponentPool";
 import { createInterruptionTracker } from "@/lib/input/interruption";
 import { loadHistoryText, parseHistory, recordRace, rivalryIntro, saveHistory } from "@/lib/history";
 import { matchForSettings, settingsFromQuery, settingsToQuery } from "@/lib/race-settings";
@@ -127,7 +129,15 @@ export default function RaceScreen() {
   const [phase, setPhase] = useState<"ready" | "running">("ready");
   const searchParams = useSearchParams();
   const settings = useMemo(() => settingsFromQuery((key) => searchParams.get(key)), [searchParams]);
-  const opponent = useMemo(() => matchForSettings(settings)?.opponent ?? null, [settings]);
+  const pool = useOpponentPool();
+  // 시작 화면에서 정해 보낸 상대(o)를 우선 쓰고, 없으면 같은 설정으로 다시 매칭한다
+  const opponent = useMemo(
+    () =>
+      (settings.opponentId ? pool.records.find((record) => record.id === settings.opponentId) : undefined) ??
+      matchForSettings(settings, pool.records)?.opponent ??
+      null,
+    [settings, pool.records],
+  );
   const raceDistanceM = settings.distanceM;
   const [intensity, setIntensity] = useState<Intensity>(settings.intensity);
   const [tick, setTick] = useState<RaceTick | null>(null);
@@ -220,6 +230,7 @@ export default function RaceScreen() {
     const filter = settings.source === "gps" ? createPositionFilter() : null; // 데모 경로는 깨끗해서 보정이 필요 없다
     const autoPause = settings.source === "gps" ? createAutoPause() : null; // 데모는 멈추지 않는다
     const elevation = createElevationTracker();
+    const track = createTrackRecorder();
     // 전화·앱 전환으로 화면이 가려지면 경기를 멈추고, 돌아오면 이어간다 (레이스 시간·상대 기록도 같이 멈춤)
     const interruption = createInterruptionTracker();
     const onVisibility = () => {
@@ -272,6 +283,7 @@ export default function RaceScreen() {
         }
 
         elevation.update(sample.ele);
+        track.add(raceTimeSec, traveled);
         const decidedAtMs = nowMs();
         const result = engine.update(raceTimeSec, traveled);
         appendGapPoint(gapSeries, { t: raceTimeSec, gapM: result.snapshot.gapM });
@@ -288,6 +300,7 @@ export default function RaceScreen() {
             gapSeries,
             events: allEvents,
             myElevationGainM: elevation.gainM,
+            myTrack: track.points,
           });
           if (summary) {
             // 전적과 개인 최고 기록에 반영한다 (이 기기에만 저장)
@@ -440,7 +453,7 @@ export default function RaceScreen() {
         <header className="pt-4">
           <h1 className="text-2xl font-bold">레이스</h1>
           <p className="mt-1 text-sm text-foreground/70">
-            {sourceLabel} · {opponent ? displayName(opponent.id) : "상대 없음"}({opponent?.source === "virtual" ? "가상 러너" : "기록"}) · {raceDistanceM / 1000}km · 내 페이스 {formatPace(settings.paceSecPerKm)}/km
+            {sourceLabel} · {opponent ? displayName(opponent.id) : "상대 없음"}({opponent?.source === "virtual" ? "가상 러너" : opponent?.source === "shared" ? "다른 러너 기록" : "기록"}) · {raceDistanceM / 1000}km · 내 페이스 {formatPace(settings.paceSecPerKm)}/km
           </p>
         </header>
 
@@ -503,9 +516,10 @@ export default function RaceScreen() {
           <button
             type="button"
             onClick={startRace}
-            className="flex-1 rounded-lg bg-foreground px-4 py-3 text-center font-semibold text-background"
+            disabled={!pool.ready || !opponent}
+            className="flex-1 rounded-lg bg-foreground px-4 py-3 text-center font-semibold text-background disabled:opacity-40"
           >
-            소리 켜고 시작
+            {pool.ready ? "소리 켜고 시작" : "상대 불러오는 중…"}
           </button>
         </div>
       </main>
@@ -517,7 +531,7 @@ export default function RaceScreen() {
       <header className="pt-4">
         <h1 className="text-2xl font-bold">레이스</h1>
         <p className="mt-1 text-sm text-foreground/70">
-          {sourceLabel} · {opponent ? displayName(opponent.id) : "상대 없음"}({opponent?.source === "virtual" ? "가상 러너" : "기록"}) · {raceDistanceM / 1000}km · 내 페이스 {formatPace(settings.paceSecPerKm)}/km
+          {sourceLabel} · {opponent ? displayName(opponent.id) : "상대 없음"}({opponent?.source === "virtual" ? "가상 러너" : opponent?.source === "shared" ? "다른 러너 기록" : "기록"}) · {raceDistanceM / 1000}km · 내 페이스 {formatPace(settings.paceSecPerKm)}/km
         </p>
       </header>
 

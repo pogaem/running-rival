@@ -51,6 +51,12 @@ describe("설정 ↔ 주소 쿼리", () => {
     expect(settingsFromQuery((key) => params.get(key))).toEqual(settings);
   });
 
+  it("매칭된 상대 이름표(o)도 실어 보낸다", () => {
+    const settings: RaceSettings = { source: "demo", distanceM: 5000, paceSecPerKm: 320, intensity: "normal", opponentId: "러너-ab12cd" };
+    const params = new URLSearchParams(settingsToQuery(settings));
+    expect(settingsFromQuery((key) => params.get(key))).toEqual(settings);
+  });
+
   it("쿼리가 없으면 기본값이다 (일반, 5km, 6:00)", () => {
     expect(settingsFromQuery(() => null)).toEqual(DEFAULT_RACE_SETTINGS);
     expect(DEFAULT_RACE_SETTINGS).toEqual({ source: "demo", distanceM: 5000, paceSecPerKm: 360, intensity: "normal" });

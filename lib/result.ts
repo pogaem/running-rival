@@ -3,7 +3,7 @@
 // 위치 좌표나 이름은 담지 않는다: 시간·거리·격차 숫자와 상대의 익명 이름표뿐이다.
 import type { RaceEvent } from "./engine/race-engine";
 import type { RaceSettings } from "./race-settings";
-import { timeToReachDistance, type RunRecord } from "./record";
+import { timeToReachDistance, type DistancePoint, type RunRecord } from "./record";
 
 /** 시간대별 격차 그래프의 한 점: 레이스 시간(초)과 격차(m, +는 내가 앞) */
 export type GapPoint = { t: number; gapM: number };
@@ -28,6 +28,10 @@ export type RaceSummary = {
   gapSeries: GapPoint[];
   /** 역전이 일어난 순간들 */
   reversals: { t: number; type: "overtake" | "overtaken" }[];
+  /** 내 기록의 시간별 누적 거리(250m마다). 공유할 때만 쓴다. 위치 좌표는 없다 */
+  myTrack?: DistancePoint[];
+  /** 내 기록을 공유했으면 그 이름표 (작업 24) */
+  sharedId?: string;
   /** 전적·최고 기록에 반영한 뒤 채운다 (작업 18). 반영하지 못했으면 없다 */
   history?: {
     newBest: boolean;
@@ -56,6 +60,7 @@ export function buildRaceSummary(input: {
   gapSeries: GapPoint[];
   events: RaceEvent[];
   myElevationGainM: number | null;
+  myTrack?: DistancePoint[];
 }): RaceSummary | null {
   const opponentTimeSec = timeToReachDistance(input.opponent, input.settings.distanceM);
   if (opponentTimeSec === null) return null;
@@ -71,6 +76,7 @@ export function buildRaceSummary(input: {
     opponentTimeSec,
     myElevationGainM: input.myElevationGainM,
     gapSeries: input.gapSeries,
+    ...(input.myTrack ? { myTrack: input.myTrack } : {}),
     reversals: input.events.flatMap((event) =>
       event.type === "overtake" || event.type === "overtaken" ? [{ t: event.t, type: event.type }] : [],
     ),

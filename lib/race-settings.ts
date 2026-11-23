@@ -26,6 +26,8 @@ export type RaceSettings = {
   distanceM: RaceDistanceM;
   paceSecPerKm: number;
   intensity: Intensity;
+  /** 시작 화면에서 매칭된 상대의 이름표. 없으면 레이스 화면이 다시 매칭한다 */
+  opponentId?: string;
 };
 
 export const DEFAULT_RACE_SETTINGS: RaceSettings = {
@@ -73,6 +75,7 @@ export function settingsToQuery(settings: RaceSettings): string {
     p: String(settings.paceSecPerKm),
     i: settings.intensity,
   });
+  if (settings.opponentId) params.set("o", settings.opponentId);
   return params.toString();
 }
 
@@ -91,6 +94,7 @@ export function settingsFromQuery(get: (key: string) => string | null | undefine
         ? Math.round(pace)
         : DEFAULT_RACE_SETTINGS.paceSecPerKm,
     intensity: INTENSITIES.includes(intensity as Intensity) ? (intensity as Intensity) : DEFAULT_RACE_SETTINGS.intensity,
+    ...(get("o") ? { opponentId: get("o") as string } : {}),
   };
 }
 

@@ -5,7 +5,8 @@
 // 라이벌 전적과 개인 최고 기록(작업 18)은 레이스 화면이 저장하면서 요약에 함께 담아 둔다.
 import { displayName } from "@/lib/runner-names";
 import Link from "next/link";
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
+import { shareMyRecord, unshareMyRecord } from "@/lib/shared/client";
 import { describeNewBest } from "@/lib/history";
 import { formatRaceClock } from "@/lib/output/subtitles";
 import { settingsToQuery } from "@/lib/race-settings";
@@ -14,6 +15,7 @@ import {
   describeElevation,
   formatMargin,
   parseSummary,
+  serializeSummary,
   SUMMARY_STORAGE_KEY,
   type RaceSummary,
 } from "@/lib/result";
@@ -80,6 +82,81 @@ function GapGraph({ summary }: { summary: RaceSummary }) {
   );
 }
 
+/** 내 기록 공유 (작업 24): 동의한 경우에만 올리고, 올린 뒤에도 이 기기에서 지울 수 있다 */
+function SharePanel({ summary }: { summary: RaceSummary }) {
+  const [sharedId, setSharedId] = useState<string | null>(summary.sharedId ?? null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const track = summary.myTrack;
+  /** 새로 고침해도 공유 상태가 남게 이 탭의 결과 요약에도 적어 둔다 */
+  const remember = (id: string | null) => {
+    try {
+      const { sharedId: _old, ...rest } = summary;
+      void _old;
+      sessionStorage.setItem(SUMMARY_STORAGE_KEY, serializeSummary(id ? { ...rest, sharedId: id } : rest));
+    } catch {
+      // 적지 못해도 공유 자체에는 영향이 없다
+    }
+  };
+  if (!track || track.length < 2) return null;
+
+  const share = async () => {
+    setBusy(true);
+    setMessage(null);
+    const result = await shareMyRecord({
+      completedDistanceM: summary.settings.distanceM,
+      totalElevationGainM: summary.myElevationGainM,
+      points: track,
+    });
+    setBusy(false);
+    if (result.ok) {
+      setSharedId(result.id);
+      remember(result.id);
+    } else setMessage(result.message);
+  };
+  const unshare = async () => {
+    if (!sharedId) return;
+    setBusy(true);
+    setMessage(null);
+    const result = await unshareMyRecord(sharedId);
+    setBusy(false);
+    if (result.ok) {
+      setSharedId(null);
+      remember(null);
+    }
+    else setMessage(result.message);
+  };
+
+  return (
+    <section aria-label="내 기록 공유" className="flex flex-col gap-2 rounded-lg border border-foreground/30 p-3 text-sm">
+      <h2 className="font-semibold">내 기록을 다른 러너의 상대로 공유하기</h2>
+      {sharedId ? (
+        <>
+          <p>공유했어요. 다른 러너가 이 기록과 대결할 수 있어요. (이름표 {sharedId})</p>
+          <button type="button" onClick={unshare} disabled={busy} className="rounded-lg border border-foreground/30 px-3 py-2 disabled:opacity-40">
+            공유 취소하고 지우기
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="text-xs text-foreground/70">
+            공유되는 것은 <b>시간별 누적 거리와 총 상승 고도</b>뿐이에요. 이름, 위치(지도 경로), 날짜는 올라가지 않고, 다른 러너에게는 익명 이름표로
+            보여요. 공유한 뒤에도 이 기기에서 언제든 지울 수 있어요.
+          </p>
+          <button type="button" onClick={share} disabled={busy} className="rounded-lg border border-foreground px-3 py-2 font-semibold disabled:opacity-40">
+            {busy ? "올리는 중…" : "동의하고 공유하기"}
+          </button>
+        </>
+      )}
+      {message && (
+        <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+          {message}
+        </p>
+      )}
+    </section>
+  );
+}
+
 export default function ResultScreen() {
   const text = useStoredSummaryText();
   const summary = text === undefined ? null : parseSummary(text);
@@ -108,7 +185,7 @@ export default function ResultScreen() {
   const distanceKm = settings.distanceM / 1000;
   const margin = summary.opponentTimeSec - summary.myTimeSec; // 양수면 내가 빠름
   const rematchHref = `/race?${settingsToQuery(settings)}`;
-  const OPPONENT_SOURCE = { virtual: "가상 러너", camp: "캠프 참가자", mine: "내 기록" } as const;
+  const OPPONENT_SOURCE = { virtual: "가상 러너", camp: "캠프 참가자", mine: "내 기록", shared: "다른 러너 기록" } as const;
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 p-4">
@@ -143,6 +220,8 @@ export default function ResultScreen() {
           <p className="text-xs text-foreground/60">전적과 최고 기록은 이 기기에만 저장돼요.</p>
         </section>
       )}
+
+      <SharePanel summary={summary} />
 
       <section aria-label="시간대별 격차 그래프" className="flex flex-col gap-2">
         <h2 className="text-sm font-semibold">누가 언제 앞섰는지</h2>

@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# 삭제 대기 파일 (사용자가 확인 후 직접 삭제)
+/trash-can/
+
+# 개발용 공유 기록 저장 파일
+/.data/
+/.data-test-*/

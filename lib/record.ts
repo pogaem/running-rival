@@ -2,8 +2,8 @@
 // 상대 기록, 가상 러너, 내 기록이 모두 이 모양을 쓴다.
 // 위치(GPS 좌표)와 이동 경로는 담지 않고, "시간별 누적 거리"만 담는다.
 
-/** 기록의 출처: 가상 러너 / 캠프 참가자 / 나 */
-export type RunSource = "virtual" | "camp" | "mine";
+/** 기록의 출처: 가상 러너 / 캠프 참가자 / 나 / 다른 사용자가 동의하고 공유한 기록 */
+export type RunSource = "virtual" | "camp" | "mine" | "shared";
 
 /** 시간별 누적 거리의 한 점: 출발 후 t초 시점에 d미터를 달렸다 */
 export type DistancePoint = {
