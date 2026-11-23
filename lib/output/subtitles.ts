@@ -2,11 +2,10 @@
 // 엔진이 만든 이벤트를 화면에 쌓을 자막 한 줄로 바꾸고, 판정 시각과 출력 시각을 함께 기록한다.
 // 이 로그는 중계가 3초 안에 나갔는지 확인하는 디버그 기록도 겸한다. 문제가 생기면 이 로그를 그대로 AI에게 전달한다.
 //
-// 음성·효과음·진동은 같은 이벤트를 받아 PLAN 작업 9~11에서 이 옆에 붙인다. 지금은 자막만 있다.
+// 음성과 효과음(PLAN 작업 9·10)은 같은 이벤트를 받아 이 옆에서 나간다. 진동은 쓰지 않기로 했다.
 import type { Prediction } from "../engine/catchup";
 import type { RaceEvent } from "../engine/race-engine";
 import { WIN_STAGE_LABEL } from "../engine/winprob";
-import type { HapticStatus } from "./haptics";
 
 /** 레이스 시간(초)을 "m:ss"로 쓴다. 예: 754 → "12:34" */
 export function formatRaceClock(seconds: number): string {
@@ -100,8 +99,6 @@ export type LogEntry = Subtitle & {
   delayMs: number;
   /** 음성 상태 */
   voice: VoiceStatus;
-  /** 진동 상태 */
-  haptic: HapticStatus;
 };
 
 /** 이벤트로 로그 한 줄을 만든다. 음성 상태를 모르면 "말하지 않음(끄기)"으로 둔다 */
@@ -111,7 +108,6 @@ export function makeLogEntry(
   decidedAtMs: number,
   outputAtMs: number,
   voice: VoiceStatus = { state: "skipped", reason: "off" },
-  haptic: HapticStatus = { state: "skipped", reason: "none" },
 ): LogEntry {
   return {
     ...formatRaceEvent(event),
@@ -121,7 +117,6 @@ export function makeLogEntry(
     outputAtMs,
     delayMs: outputAtMs - decidedAtMs,
     voice,
-    haptic,
   };
 }
 
@@ -144,7 +139,6 @@ export function makePredictionLogEntry(
     outputAtMs,
     delayMs: outputAtMs - decidedAtMs,
     voice,
-    haptic: { state: "skipped", reason: "none" },
   };
 }
 
