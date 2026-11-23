@@ -203,15 +203,7 @@ export default function StartScreen() {
           disabled={!pace.ok || !distance.ok || !opponent}
           className="btn-primary"
         >
-          대결 시작 (실제 GPS)
-        </button>
-        <button
-          type="button"
-          onClick={() => start("demo")}
-          disabled={!pace.ok || !distance.ok || !opponent}
-          className="btn-secondary text-sm"
-        >
-          데모로 체험하기 (10배속)
+          대결 시작
         </button>
       </div>
     </main>

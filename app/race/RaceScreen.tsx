@@ -159,6 +159,20 @@ function RaceScreenInner() {
   // 실제 GPS일 때: 마지막 위치 정확도(m)와 위치 오류
   const [gpsAccuracyM, setGpsAccuracyM] = useState<number | null>(null);
   const [gpsError, setGpsError] = useState<InputError | null>(null);
+  /** 준비 화면에서 확인하는 위치 권한 상태 */
+  const [locPerm, setLocPerm] = useState<"checking" | "granted" | "denied" | "unavailable">("checking");
+  /** 위치 권한을 요청한다. 처음이면 브라우저가 허용 창을 띄운다 */
+  const askLocation = useCallback(() => {
+    if (typeof navigator === "undefined" || !("geolocation" in navigator)) {
+      queueMicrotask(() => setLocPerm("unavailable"));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      () => setLocPerm("granted"),
+      (error) => setLocPerm(error.code === 1 ? "denied" : "granted"), // 신호가 약한 것은 권한 문제가 아니다
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
+    );
+  }, []);
   const [, setGpsRejected] = useState(0); // 보정에서 걸러 낸 점의 수
   const [autoPaused, setAutoPaused] = useState(false); // 멈춘 것이 감지돼 레이스가 일시정지됐는가
   const [interrupted, setInterrupted] = useState(false); // 화면이 가려져 경기를 멈춘 중인가
@@ -454,6 +468,10 @@ function RaceScreenInner() {
     };
   }, [phase, wakeSupported]);
 
+  useEffect(() => {
+    if (phase === "ready" && settings.source === "gps") askLocation();
+  }, [phase, settings.source, askLocation]);
+
   /** "소리 켜고 시작": 소리 잠금을 풀고(사용자가 누른 때만 가능), 멘트 도구를 준비하고, 레이스를 시작한다 */
   const startRace = () => {
     const speaker = createSpeaker(createBrowserSpeakerEnv());
@@ -476,12 +494,6 @@ function RaceScreenInner() {
     const event: RaceEvent =
       type === "last200m" ? { type, t } : { type, t, gapM: type === "overtake" ? 12 : -12 };
     outputMoments([event], null, t, nowMs());
-  };
-
-  const sourceLabel = settings.source === "gps" ? "실제 GPS" : `데모 · ${DEMO_SPEED}배속`;
-  const goDemo = (event: { preventDefault(): void }) => {
-    event.preventDefault();
-    router.push(freshRaceHref({ ...settings, source: "demo" }));
   };
 
   const myDistance = tick?.snapshot.myDistanceM ?? 0;
@@ -553,16 +565,49 @@ function RaceScreenInner() {
               <p className="text-xl font-bold">{INTENSITY_LABEL[intensity]}</p>
             </div>
           </div>
-          <p className="text-xs text-white/55">
-            {sourceLabel}
-            {settings.source === "gps" ? " · 위치 사용을 허용하고, 뛰기 시작하면 자동으로 출발해요" : ""}
-            {voiceSupport.speech ? "" : " · 이 기기는 음성 미지원(자막만)"}
-          </p>
+          <div className="flex items-center justify-between gap-3 rounded-2xl bg-white/5 px-3 py-2.5">
+            <div>
+              <p className="text-sm font-semibold">데모 모드 (10배속)</p>
+              <p className="text-[11px] text-white/50">뛰지 않고 책상에서 체험해요</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={settings.source === "demo"}
+              aria-label="데모 모드"
+              onClick={() => router.replace(freshRaceHref({ ...settings, source: settings.source === "demo" ? "gps" : "demo" }))}
+              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${settings.source === "demo" ? "bg-emerald-400" : "bg-white/25"}`}
+            >
+              <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white transition-all ${settings.source === "demo" ? "left-[22px]" : "left-0.5"}`} />
+            </button>
+          </div>
           {settings.source === "gps" && (
-            <Link className="text-xs underline" href="/race" onClick={goDemo}>
-              뛰지 않고 데모로 체험하기
-            </Link>
+            <div className="rounded-2xl bg-white/5 px-3 py-2.5 text-xs">
+              {locPerm === "checking" && <p className="text-white/70">위치 허용 창이 뜨면 &ldquo;허용&rdquo;을 눌러 주세요…</p>}
+              {locPerm === "granted" && <p className="text-emerald-300">위치 사용 허용됨 · 뛰기 시작하면 자동으로 출발해요</p>}
+              {(locPerm === "denied" || locPerm === "unavailable") && (
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-red-300">
+                    {locPerm === "denied" ? "위치가 꺼져 있어요." : "이 기기는 위치를 지원하지 않아요."}
+                  </p>
+                  <p className="text-white/60">
+                    아이폰: 설정 → 개인정보 보호 및 보안 → 위치 서비스 → Safari 웹사이트 → &ldquo;앱을 사용하는 동안&rdquo;으로 바꾸거나, 주소창 왼쪽 &ldquo;aA&rdquo; → 웹사이트 설정 → 위치 → 허용
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLocPerm("checking");
+                      askLocation();
+                    }}
+                    className="self-start underline"
+                  >
+                    다시 확인하기
+                  </button>
+                </div>
+              )}
+            </div>
           )}
+          {!voiceSupport.speech && <p className="text-xs text-white/55">이 기기는 음성 미지원(자막만)</p>}
         </section>
 
         <p className="px-1 text-center text-sm text-white/60">이어폰을 끼고, 외부 소리 듣기 모드를 켜고 뛰세요.</p>
