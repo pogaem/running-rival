@@ -94,13 +94,18 @@ export type GapEngine = {
   readonly leader: Leader;
 };
 
-export function createGapEngine(setup: RaceSetup, thresholdM: number = LEAD_THRESHOLD_M): GapEngine {
+/** 레이스 설정이 올바른지 검사한다: 대결 거리는 0보다 크고, 상대 기록은 대결 거리 이상을 완주한 기록이어야 한다 */
+export function assertRaceSetup(setup: RaceSetup): void {
   if (!(setup.raceDistanceM > 0)) {
     throw new Error("대결 거리는 0보다 커야 한다");
   }
   if (setup.opponent.completedDistanceM < setup.raceDistanceM) {
     throw new Error("상대 기록이 대결 거리보다 짧다");
   }
+}
+
+export function createGapEngine(setup: RaceSetup, thresholdM: number = LEAD_THRESHOLD_M): GapEngine {
+  assertRaceSetup(setup);
   const tracker = createLeadTracker(thresholdM);
 
   return {
