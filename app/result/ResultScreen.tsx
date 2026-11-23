@@ -57,7 +57,7 @@ function GapGraph({ summary }: { summary: RaceSummary }) {
         viewBox={`0 0 ${GRAPH_W} ${GRAPH_H}`}
         role="img"
         aria-label="시간대별 격차 그래프. 위쪽은 내가 앞선 구간, 아래쪽은 상대가 앞선 구간입니다."
-        className="w-full rounded-lg border border-foreground/30"
+        className="w-full rounded-2xl bg-black/25"
       >
         <line x1="0" x2={GRAPH_W} y1={geometry.zeroY} y2={geometry.zeroY} stroke="currentColor" strokeOpacity="0.4" strokeDasharray="4 3" />
         {area && <path d={area} fill="currentColor" fillOpacity="0.12" />}
@@ -196,17 +196,28 @@ export default function ResultScreen() {
         </p>
       </header>
 
-      <section aria-label="승패와 기록" className="flex flex-col gap-1 glass p-4">
-        <p className={`text-4xl font-bold tracking-tight ${summary.won ? "text-emerald-400" : "text-red-400"}`}>
+      <section aria-label="승패와 기록" className="glass flex flex-col gap-4 p-5">
+        <p className={`text-6xl font-bold tracking-tight ${summary.won ? "text-emerald-400" : "text-red-400"}`}>
           {summary.won ? "승리" : "패배"}
         </p>
-        <p className="tabular-nums">
-          내 기록 <b>{formatRaceClock(summary.myTimeSec)}</b> · 상대 기록 <b>{formatRaceClock(summary.opponentTimeSec)}</b>
-        </p>
-        <p className="text-sm text-foreground/70">
+        <p className="text-sm text-white/70">
           {summary.won ? `${formatMargin(margin)} 먼저 들어왔어요` : `${formatMargin(margin)} 차이로 아쉽게 졌어요`}
           {summary.reversals.length > 0 ? ` · 역전 ${summary.reversals.length}번` : " · 역전 없이 끝났어요"}
         </p>
+        <div className="grid grid-cols-2 gap-3 tabular-nums">
+          <div className="rounded-2xl bg-black/25 p-3">
+            <p className="text-xs text-white/55">내 기록</p>
+            <p className="mt-1 text-2xl font-bold">
+              <b>{formatRaceClock(summary.myTimeSec)}</b>
+            </p>
+          </div>
+          <div className="rounded-2xl bg-black/25 p-3">
+            <p className="text-xs text-white/55">상대 기록</p>
+            <p className="mt-1 text-2xl font-bold">
+              <b>{formatRaceClock(summary.opponentTimeSec)}</b>
+            </p>
+          </div>
+        </div>
       </section>
 
       {summary.history && (
@@ -223,8 +234,8 @@ export default function ResultScreen() {
 
       <SharePanel summary={summary} />
 
-      <section aria-label="시간대별 격차 그래프" className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold">누가 언제 앞섰는지</h2>
+      <section aria-label="시간대별 격차 그래프" className="glass flex flex-col gap-3 p-5">
+        <h2 className="text-sm font-semibold text-white/70">누가 언제 앞섰는지</h2>
         <GapGraph summary={summary} />
       </section>
 

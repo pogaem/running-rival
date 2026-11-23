@@ -425,6 +425,9 @@ export default function RaceScreen() {
 
   const myDistance = tick?.snapshot.myDistanceM ?? 0;
   const gap = tick?.snapshot.gapM ?? 0;
+  const rivalDistance = tick?.snapshot.opponentDistanceM ?? 0;
+  /** 코스 위 위치(0~100%) */
+  const trackPercent = (distanceM: number) => Math.max(0, Math.min(100, (distanceM / raceDistanceM) * 100));
   const gapPosition = 50 + (Math.max(-GAP_BAR_RANGE_M, Math.min(GAP_BAR_RANGE_M, gap)) / GAP_BAR_RANGE_M) * 50;
   const predictionText = formatPrediction(tick?.prediction ?? null);
   const percent = tick?.estimate ? displayPercent(tick.estimate.probability) : null;
@@ -576,29 +579,56 @@ export default function RaceScreen() {
         </p>
       )}
 
-      <section aria-label="진행 상황" className="flex items-end justify-between">
-        <p className="text-4xl font-bold tracking-tight tabular-nums">
-          {(myDistance / 1000).toFixed(2)}
-          <span className="text-base font-normal text-foreground/70"> km / {raceDistanceM / 1000} km</span>
-        </p>
-        <p className="text-4xl font-bold tracking-tight tabular-nums">{formatRaceClock(tick?.t ?? 0)}</p>
+      <section aria-label="진행 상황" className="glass flex flex-col gap-4 p-5">
+        <div className="flex items-end justify-between">
+          <div>
+            <p className="text-xs font-semibold text-white/55">달린 거리</p>
+            <p className="text-5xl font-bold tracking-tight tabular-nums">
+              {(myDistance / 1000).toFixed(2)}
+              <span className="ml-1 text-base font-medium text-white/60">/ {raceDistanceM / 1000} km</span>
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs font-semibold text-white/55">경과 시간</p>
+            <p className="text-3xl font-bold tracking-tight tabular-nums">{formatRaceClock(tick?.t ?? 0)}</p>
+          </div>
+        </div>
+        <div className="relative h-10" role="img" aria-label="코스 위 나와 상대의 위치">
+          <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-white/15" />
+          <div
+            className="absolute left-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-white/60"
+            style={{ width: `${trackPercent(myDistance)}%` }}
+          />
+          <span
+            className="absolute top-0 -translate-x-1/2 rounded-full bg-orange-400/90 px-2 py-0.5 text-[10px] font-bold text-[#0a0c12]"
+            style={{ left: `${trackPercent(rivalDistance)}%` }}
+          >
+            상대
+          </span>
+          <span
+            className="absolute bottom-0 -translate-x-1/2 rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-[#0a0c12]"
+            style={{ left: `${trackPercent(myDistance)}%` }}
+          >
+            나
+          </span>
+        </div>
       </section>
 
-      <section aria-label="나와 상대의 격차" className="glass p-4">
-        <div className="flex justify-between text-xs text-foreground/60">
-          <span>◀ 상대가 앞</span>
-          <span>내가 앞 ▶</span>
-        </div>
-        <div className="relative my-2 h-3 rounded-full bg-foreground/10" role="img" aria-label={`격차 ${formatGap(gap)}`}>
-          <div className="absolute left-1/2 top-0 h-3 w-px bg-foreground/40" />
+      <section aria-label="나와 상대의 격차" className="glass p-5">
+        <p className="text-center text-2xl font-bold tabular-nums">
+          {tick ? `${formatGap(gap)} ${gap >= 0 ? "내가 앞서는 중" : "상대가 앞서는 중"}` : "출발 준비 중"}
+        </p>
+        <div className="relative my-3 h-3 rounded-full bg-white/10" role="img" aria-label={`격차 ${formatGap(gap)}`}>
+          <div className="absolute left-1/2 top-0 h-3 w-px bg-white/40" />
           <div
-            className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground"
+            className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_14px_rgba(255,255,255,0.6)]"
             style={{ left: `${gapPosition}%` }}
           />
         </div>
-        <p className="text-sm font-semibold tabular-nums">
-          {tick ? `${formatGap(gap)} ${gap >= 0 ? "내가 앞서는 중" : "상대가 앞서는 중"}` : "출발 준비 중"}
-        </p>
+        <div className="flex justify-between text-xs text-white/55">
+          <span>◀ 상대가 앞</span>
+          <span>내가 앞 ▶</span>
+        </div>
       </section>
 
       <section aria-label="예상 승률" className="glass p-4">
@@ -628,7 +658,7 @@ export default function RaceScreen() {
       </section>
 
       <section aria-label="중계 자막" className="flex min-h-0 flex-1 flex-col glass p-4">
-        <h2 className="text-sm font-semibold">중계 자막</h2>
+        <h2 className="text-sm font-semibold text-white/70">중계 자막</h2>
         <ol aria-live="polite" className="mt-2 flex max-h-56 flex-col gap-2 overflow-y-auto">
           {log.length === 0 && <li className="text-sm text-foreground/60">경기가 시작되면 여기에 쌓입니다</li>}
           {log.map((entry) => (
