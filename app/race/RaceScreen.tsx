@@ -14,6 +14,7 @@ import { displayPercent, WIN_STAGE_LABEL } from "@/lib/engine/winprob";
 import { distanceBetweenM } from "@/lib/geo";
 import { createDemoInput, DEMO_SPEED } from "@/lib/input/demo-input";
 import { createBrowserGpsEnv, createGpsInput } from "@/lib/input/gps-input";
+import { createAutoPause } from "@/lib/input/auto-pause";
 import { createPositionFilter } from "@/lib/input/gps-filter";
 import type { InputError, PositionInput } from "@/lib/input/types";
 import { makeStraightTrack } from "@/lib/input/synthetic-track";
@@ -131,6 +132,7 @@ export default function RaceScreen() {
   const [gpsAccuracyM, setGpsAccuracyM] = useState<number | null>(null);
   const [gpsError, setGpsError] = useState<InputError | null>(null);
   const [gpsRejected, setGpsRejected] = useState(0); // 보정에서 걸러 낸 점의 수
+  const [autoPaused, setAutoPaused] = useState(false); // 멈춘 것이 감지돼 레이스가 일시정지됐는가
   const [wake, setWake] = useState<WakeStatus>("waiting");
   const wakeSupported = useWakeLockSupported();
   const voiceSupport = useVoiceSupport();
@@ -207,6 +209,7 @@ export default function RaceScreen() {
     let previous: PositionSample | null = null;
     let traveled = 0; // 누적 거리. 실제 GPS는 보정(정확도 나쁜 점·순간 이동 제거, 이동 평균)을 거친 점만 더한다
     const filter = settings.source === "gps" ? createPositionFilter() : null; // 데모 경로는 깨끗해서 보정이 필요 없다
+    const autoPause = settings.source === "gps" ? createAutoPause() : null; // 데모는 멈추지 않는다
 
     input.start({
       onSample: (rawSample) => {
@@ -221,11 +224,20 @@ export default function RaceScreen() {
         if (previous) traveled += distanceBetweenM(previous, sample);
         previous = sample;
 
+        // 멈춘 동안은 레이스 시간이 흐르지 않는다: 상대 기록도 멈추고, 엔진을 돌리지 않으니 중계도 나가지 않는다
+        let raceTimeSec = sample.t;
+        if (autoPause) {
+          const pause = autoPause.update(sample.t, traveled);
+          setAutoPaused(pause.paused);
+          if (pause.paused) return;
+          raceTimeSec = pause.raceTimeSec;
+        }
+
         const decidedAtMs = nowMs();
-        const result = engine.update(sample.t, traveled);
+        const result = engine.update(raceTimeSec, traveled);
         latestTick.current = result;
         setTick(result);
-        outputMoments(result.events, result.prediction, sample.t, decidedAtMs);
+        outputMoments(result.events, result.prediction, raceTimeSec, decidedAtMs);
         if (settings.source === "gps") {
           setGpsError(null);
           if (result.finished) {
@@ -442,6 +454,12 @@ export default function RaceScreen() {
         </section>
       )}
 
+      {autoPaused && (
+        <p role="status" className="rounded-lg border border-foreground/30 p-3 text-center text-sm font-semibold">
+          일시정지 중 · 멈춘 것이 감지됐어요. 다시 달리면 이어집니다 (상대 기록과 중계도 멈춰 있어요)
+        </p>
+      )}
+
       <section aria-label="진행 상황" className="flex items-end justify-between">
         <p className="text-3xl font-bold tabular-nums">
           {(myDistance / 1000).toFixed(2)}
@@ -549,13 +567,6 @@ export default function RaceScreen() {
       </p>
 
       <div className="mt-auto flex gap-3">
-        <button
-          type="button"
-          disabled
-          className="flex-1 rounded-lg border border-foreground/30 px-4 py-3 text-foreground/40"
-        >
-          일시정지 (작업 16)
-        </button>
         <Link
           href="/result"
           className="flex-1 rounded-lg bg-foreground px-4 py-3 text-center font-semibold text-background"
