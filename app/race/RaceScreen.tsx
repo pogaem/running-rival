@@ -113,7 +113,7 @@ type WakeStatus = "waiting" | "on" | "off" | "denied";
 function voiceNote(voice: VoiceStatus): string | null {
   switch (voice.state) {
     case "failed":
-      return `음성 실패: ${voice.message}`;
+      return null; // 기술적인 실패 이유는 보여 주지 않는다
     case "skipped":
       return {
         off: "음성 없음 (중계 끄기)",
@@ -175,6 +175,8 @@ function RaceScreenInner() {
   const nextLogId = useRef(1);
   const latestTick = useRef<RaceTick | null>(null);
   const speakerRef = useRef<Speaker | null>(null);
+  /** 지난 대결 한마디. 출발 중계 때 대신 말한다 */
+  const introRef = useRef<string | null>(null);
   const policyRef = useRef<VoicePolicy | null>(null);
   const sfxRef = useRef<Sfx | null>(null);
   const pauseControlRef = useRef<{ setPaused(paused: boolean): void; startNow(): void } | null>(null);
@@ -201,10 +203,15 @@ function RaceScreenInner() {
       const decision = policy.decideEvent(event);
       // 효과음(함성·심장 박동)도 음성 간격과 상관없이 이벤트에 맞춰 바로 낸다
       sfxRef.current?.handleEvent(event, intensityRef.current);
+      const intro = event.type === "start" ? introRef.current : null;
+      if (intro) introRef.current = null;
       if (decision.speak && speaker?.supported) {
-        const text = book.forEvent(event);
-        entries.push(makeLogEntry(id, event, decidedAtMs, nowMs(), { state: "pending", text }));
+        const text = intro ?? book.forEvent(event);
+        const voice: VoiceStatus = { state: "pending", text };
+        entries.push(intro ? makePredictionLogEntry(id, t, intro, decidedAtMs, nowMs(), voice) : makeLogEntry(id, event, decidedAtMs, nowMs(), voice));
         speak(id, text, decision.priority);
+      } else if (intro) {
+        entries.push(makePredictionLogEntry(id, t, intro, decidedAtMs, nowMs(), { state: "skipped", reason: decision.speak ? "unsupported" : decision.reason }));
       } else {
         const voice: VoiceStatus = {
           state: "skipped",
@@ -458,19 +465,8 @@ function RaceScreenInner() {
     void sfx.preload(); // 버튼을 누른 직후에 불러 두면 첫 효과음 전에 준비된다
     sfxRef.current = sfx;
     bookRef.current = createPhraseBook();
-    // 지난 대결이 있으면 경기 시작 전에 한마디 전한다 ("설욕전입니다!"). 최소·끄기에서는 말하지 않고 자막만 올린다
-    const intro = opponent ? rivalryIntro(parseHistory(loadHistoryText()).rivals[opponent.id]) : null;
-    if (intro) {
-      const id = nextLogId.current++;
-      const talk = speaker.supported && (intensity === "normal" || intensity === "active");
-      const voice: VoiceStatus = talk ? { state: "pending", text: intro } : { state: "skipped", reason: "intensity" };
-      setLog((current) => prependLog(current, [makePredictionLogEntry(id, 0, intro, nowMs(), nowMs(), voice)]));
-      if (talk) {
-        void speaker.speak(intro, { priority: false }).then((result) => {
-          setLog((current) => applyVoiceResult(current, id, result));
-        });
-      }
-    }
+    // 지난 대결이 있으면 출발 중계 대신 그 한마디를 먼저 전한다 ("설욕전입니다!"). 출발 멘트와 겹쳐 말이 끊기지 않게 하나로 합친다
+    introRef.current = opponent ? rivalryIntro(parseHistory(loadHistoryText()).rivals[opponent.id]) : null;
     setPhase("running");
   };
 
@@ -616,6 +612,7 @@ function RaceScreenInner() {
       <section aria-label="진행 상황" className="glass relative min-h-0 flex-1 overflow-hidden !p-0">
         <RouteMap
           variant="compact"
+          distanceM={raceDistanceM}
           label="코스 위 나와 상대의 위치"
           progress={trackPercent(myDistance) / 100}
           markers={raceMarkers}

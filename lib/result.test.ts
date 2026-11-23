@@ -126,3 +126,21 @@ describe("computeGraphGeometry", () => {
     expect(computeGraphGeometry(makeSummary({ gapSeries: [], reversals: [] }), 100, 50).line).toEqual([]);
   });
 });
+
+describe("buildAnalysis", () => {
+  it("승패와 역전 횟수를 문장으로 돌려준다", async () => {
+    const { buildAnalysis } = await import("./result");
+    const lines = buildAnalysis({
+      settings: { distanceM: 1000, paceSecPerKm: 360, intensity: "normal", source: "demo" },
+      opponent: { id: "a", source: "virtual", elevationGainM: null },
+      won: true,
+      myTimeSec: 300,
+      opponentTimeSec: 312,
+      myElevationGainM: null,
+      gapSeries: [{ t: 0, gapM: 0 }, { t: 100, gapM: 20 }, { t: 300, gapM: 30 }],
+      reversals: [{ t: 50, type: "overtake" }],
+    } as never);
+    expect(lines[0]).toContain("12초");
+    expect(lines.join(" ")).toContain("1번");
+  });
+});

@@ -82,7 +82,7 @@ export default function StartScreen() {
   return (
     <main className="mx-auto flex h-dvh w-full max-w-md flex-col gap-3 overflow-hidden p-4">
       <header className="relative h-[26dvh] min-h-[150px] shrink-0 overflow-hidden rounded-3xl border border-white/10">
-        <RouteMap variant="banner" label={`${distanceM / 1000}km 코스 미리보기`} markers={previewMarkers} />
+        <RouteMap variant="banner" distanceM={distanceM} label={`${distanceM / 1000}km 코스 미리보기`} markers={previewMarkers} />
         <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/70 to-transparent px-5 pb-8 pt-4">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">Running Rival</p>
           <h1 className="text-3xl font-bold leading-tight tracking-tight">러닝 라이벌</h1>

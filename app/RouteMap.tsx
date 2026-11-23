@@ -12,11 +12,22 @@ export type RouteVariant = keyof typeof HEIGHTS;
 type Geometry = { h: number; route: { x: number; y: number }[]; contours: string[] };
 
 /** 구불구불한 코스를 촘촘한 점 목록으로 만든다 (위에서 아래로 내려오는 모양) */
-function buildRoute(h: number, top: number): { x: number; y: number }[] {
+/** 거리에 따라 코스 모양을 달리한다: 짧으면 완만하게, 길수록 굽이가 많아진다 */
+export type CourseShape = { freq: number; amp: number; wiggle: number };
+export function courseShapeFor(distanceM: number | undefined): CourseShape {
+  if (!distanceM) return { freq: 5.4, amp: 115, wiggle: 22 };
+  if (distanceM <= 1000) return { freq: 3.1, amp: 95, wiggle: 10 };
+  if (distanceM <= 2000) return { freq: 4.6, amp: 110, wiggle: 16 };
+  if (distanceM <= 3000) return { freq: 6.4, amp: 118, wiggle: 22 };
+  if (distanceM <= 5000) return { freq: 8.2, amp: 122, wiggle: 26 };
+  return { freq: 10.5, amp: 124, wiggle: 30 };
+}
+
+function buildRoute(h: number, top: number, shape: CourseShape): { x: number; y: number }[] {
   return Array.from({ length: STEPS + 1 }, (_, i) => {
     const t = i / STEPS;
     return {
-      x: 170 + 115 * Math.sin(5.4 * t + 0.6) + 22 * Math.sin(13 * t + 1),
+      x: 170 + shape.amp * Math.sin(shape.freq * t + 0.6) + shape.wiggle * Math.sin(13 * t + 1),
       y: top + (h - top - 38) * t,
     };
   });
@@ -35,16 +46,28 @@ function contourPaths(cx: number, cy: number, rings: number, step: number, seed:
   });
 }
 
-const GEOMETRY: Record<RouteVariant, Geometry> = {
-  wide: { h: HEIGHTS.wide, route: buildRoute(HEIGHTS.wide, 38), contours: [...contourPaths(60, 90, 8, 20, 1), ...contourPaths(290, 220, 9, 18, 4)] },
-  banner: { h: HEIGHTS.banner, route: buildRoute(HEIGHTS.banner, 58), contours: [...contourPaths(60, 70, 6, 16, 1), ...contourPaths(290, 150, 7, 14, 4)] },
-  compact: { h: HEIGHTS.compact, route: buildRoute(HEIGHTS.compact, 92), contours: [...contourPaths(60, 90, 8, 18, 1), ...contourPaths(290, 230, 9, 16, 4)] },
-  tall: { h: HEIGHTS.tall, route: buildRoute(HEIGHTS.tall, 112), contours: [...contourPaths(60, 110, 9, 22, 1), ...contourPaths(290, 300, 10, 20, 4)] },
+const TOPS: Record<RouteVariant, number> = { wide: 38, banner: 58, compact: 92, tall: 112 };
+const CONTOURS: Record<RouteVariant, string[]> = {
+  wide: [...contourPaths(60, 90, 8, 20, 1), ...contourPaths(290, 220, 9, 18, 4)],
+  banner: [...contourPaths(60, 70, 6, 16, 1), ...contourPaths(290, 150, 7, 14, 4)],
+  compact: [...contourPaths(60, 90, 8, 18, 1), ...contourPaths(290, 230, 9, 16, 4)],
+  tall: [...contourPaths(60, 110, 9, 22, 1), ...contourPaths(290, 300, 10, 20, 4)],
 };
+const geometryCache = new Map<string, Geometry>();
+function geometryFor(variant: RouteVariant, distanceM: number | undefined): Geometry {
+  const shape = courseShapeFor(distanceM);
+  const key = `${variant}:${shape.freq}`;
+  let geometry = geometryCache.get(key);
+  if (!geometry) {
+    geometry = { h: HEIGHTS[variant], route: buildRoute(HEIGHTS[variant], TOPS[variant], shape), contours: CONTOURS[variant] };
+    geometryCache.set(key, geometry);
+  }
+  return geometry;
+}
 
 /** 코스 위 비율(0~1)을 화면 좌표로 바꾼다 */
-export function routePoint(fraction: number, variant: RouteVariant = "tall"): { x: number; y: number } {
-  const route = GEOMETRY[variant].route;
+export function routePoint(fraction: number, variant: RouteVariant = "tall", distanceM?: number): { x: number; y: number } {
+  const route = geometryFor(variant, distanceM).route;
   const f = Math.min(Math.max(fraction, 0), 1) * STEPS;
   const i = Math.min(Math.floor(f), STEPS - 1);
   const rest = f - i;
@@ -61,7 +84,7 @@ export type RouteMarker = {
   /** 코스 위 위치(0~1) */
   fraction: number;
   label: string;
-  /** me: 흰색 · rival: 주황 · flag: 출발·도착 · km: 작은 거리 표시 */
+  /** me: 노랑(강조) · rival: 흰색 · flag: 출발·도착 · km: 작은 거리 표시 */
   tone: "me" | "rival" | "flag" | "km";
   /** 겹치지 않게 글자 칸을 점의 왼쪽/오른쪽에 둔다 */
   side?: "left" | "right";
@@ -81,9 +104,12 @@ export default function RouteMap({
   markers = [],
   label,
   variant = "tall",
+  distanceM,
   className = "",
 }: {
   variant?: RouteVariant;
+  /** 대결 거리(m). 거리에 따라 코스 모양이 달라진다 */
+  distanceM?: number;
   /** 지금까지 달린 비율(0~1). 그만큼 코스가 밝게 칠해진다 */
   progress?: number;
   markers?: RouteMarker[];
@@ -91,7 +117,7 @@ export default function RouteMap({
   label: string;
   className?: string;
 }) {
-  const { h: H, route, contours } = GEOMETRY[variant];
+  const { h: H, route, contours } = geometryFor(variant, distanceM);
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
@@ -110,6 +136,18 @@ export default function RouteMap({
         </filter>
       </defs>
       <rect width={W} height={H} fill={`url(#map-ground-${variant})`} />
+      {/* 도시 지도 느낌: 큰 도로 격자, 공원, 강 */}
+      <g opacity="0.5">
+        {[40, 110, 190, 260, 320].map((x) => (
+          <line key={`v${x}`} x1={x} y1="0" x2={x + 30} y2={H} stroke="rgba(255,255,255,0.05)" strokeWidth="2" />
+        ))}
+        {[0.18, 0.4, 0.62, 0.84].map((f) => (
+          <line key={`h${f}`} x1="0" y1={H * f} x2={W} y2={H * f - 24} stroke="rgba(255,255,255,0.05)" strokeWidth="2" />
+        ))}
+      </g>
+      <path d={`M -10 ${H * 0.72} C 90 ${H * 0.6}, 200 ${H * 0.85}, ${W + 10} ${H * 0.66}`} fill="none" stroke="rgba(96,165,250,0.22)" strokeWidth="14" strokeLinecap="round" />
+      <ellipse cx="62" cy={H * 0.3} rx="46" ry="30" fill="rgba(74,222,128,0.10)" />
+      <ellipse cx="288" cy={H * 0.5} rx="40" ry="28" fill="rgba(74,222,128,0.08)" />
       {contours.map((d, i) => (
         <path key={i} d={d} fill="none" stroke="rgba(255,255,255,0.09)" strokeWidth="1.2" />
       ))}
@@ -123,8 +161,11 @@ export default function RouteMap({
         </>
       )}
 
-      {markers.map((marker, i) => {
-        const p = routePoint(marker.fraction, variant);
+      {[...markers].sort((a, b) => (a.tone === "me" ? 1 : 0) - (b.tone === "me" ? 1 : 0)).map((marker, i) => {
+        const base = routePoint(marker.fraction, variant, distanceM);
+        // 두 러너가 겹쳐 하나로 보이지 않게, 나는 코스 오른쪽 레인, 상대는 왼쪽 레인에 둔다
+        const lane = marker.tone === "me" ? 5 : marker.tone === "rival" ? -5 : 0;
+        const p = { x: base.x + lane, y: base.y };
         const tone = TONE[marker.tone];
         const width = Math.max(34, marker.label.length * 7.2 + 16);
         const right = (marker.side ?? "right") === "right";
@@ -132,7 +173,8 @@ export default function RouteMap({
         const y = Math.min(Math.max(p.y - 11 + (marker.dy ?? 0), 4), H - 26);
         return (
           <g key={i}>
-            <circle cx={p.x} cy={p.y} r={marker.tone === "km" ? 3.5 : 6} fill={marker.tone === "me" ? "#facc15" : "#ffffff"} stroke="#0a0c12" strokeWidth="2" />
+            {marker.tone === "me" && <circle cx={p.x} cy={p.y} r="11" fill="rgba(250,204,21,0.28)" />}
+            <circle cx={p.x} cy={p.y} r={marker.tone === "km" ? 3.5 : marker.tone === "me" ? 7 : 6} fill={marker.tone === "me" ? "#facc15" : "#ffffff"} stroke="#0a0c12" strokeWidth="2" />
             <rect x={x} y={y} width={width} height="22" rx="11" fill={tone.fill} />
             <text x={x + width / 2} y={y + 15} textAnchor="middle" fontSize="11" fontWeight="700" fill={tone.text}>
               {marker.label}

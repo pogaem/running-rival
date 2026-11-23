@@ -157,3 +157,44 @@ export function computeGraphGeometry(summary: RaceSummary, width: number, height
     rangeM,
   };
 }
+
+/**
+ * 레이스 상세 분석 글. 외부 AI 없이 격차 기록에서 규칙으로 뽑아 쓴다(PRD: 템플릿 기반).
+ * 가장 크게 앞선·뒤진 순간, 역전 횟수, 전반과 후반 흐름, 고도 조건을 문장으로 돌려준다.
+ */
+export function buildAnalysis(summary: RaceSummary): string[] {
+  const lines: string[] = [];
+  const series = summary.gapSeries;
+  const clock = (sec: number) => `${Math.floor(sec / 60)}분 ${String(Math.round(sec % 60)).padStart(2, "0")}초`;
+  const margin = summary.opponentTimeSec - summary.myTimeSec;
+  lines.push(
+    summary.won
+      ? `상대보다 ${formatMargin(margin)} 빠르게 들어왔어요.`
+      : `상대보다 ${formatMargin(margin)} 늦게 들어왔어요.`,
+  );
+  if (series.length >= 2) {
+    const best = series.reduce((a, b) => (b.gapM > a.gapM ? b : a));
+    const worst = series.reduce((a, b) => (b.gapM < a.gapM ? b : a));
+    if (best.gapM > 5) lines.push(`가장 크게 앞선 때는 ${clock(best.t)}쯤, ${Math.round(best.gapM)}m 차이였어요.`);
+    if (worst.gapM < -5) lines.push(`가장 크게 뒤처진 때는 ${clock(worst.t)}쯤, ${Math.round(-worst.gapM)}m 차이였어요.`);
+    const half = series[Math.floor(series.length / 2)];
+    const end = series[series.length - 1];
+    const first = half.gapM;
+    const second = end.gapM - half.gapM;
+    if (Math.abs(second) > 3 || Math.abs(first) > 3) {
+      lines.push(
+        second > first
+          ? "후반으로 갈수록 흐름이 내게 유리해졌어요. 후반 페이스가 좋았습니다."
+          : "후반으로 갈수록 상대에게 밀리는 흐름이었어요. 초반에 힘을 아껴 보세요.",
+      );
+    }
+  }
+  if (summary.reversals.length === 0) lines.push("역전 없이 한 번 잡은 순서를 끝까지 지켰어요.");
+  else lines.push(`순서가 ${summary.reversals.length}번 바뀌었어요. 접전이었습니다.`);
+  const gain = summary.myElevationGainM;
+  const rival = summary.opponent.elevationGainM;
+  if (gain !== null && rival !== null && Math.abs(gain - rival) >= 10) {
+    lines.push(gain > rival ? `내 코스가 상대보다 오르막이 ${Math.round(gain - rival)}m 더 많았어요.` : `상대 코스가 오르막이 ${Math.round(rival - gain)}m 더 많았어요.`);
+  }
+  return lines;
+}

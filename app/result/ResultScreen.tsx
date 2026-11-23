@@ -7,6 +7,7 @@ import RouteMap, { type RouteMarker } from "../RouteMap";
 import { displayName } from "@/lib/runner-names";
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
+import { buildAnalysis, computeGraphGeometry, describeElevation } from "@/lib/result";
 import { shareMyRecord, unshareMyRecord } from "@/lib/shared/client";
 import { describeNewBest } from "@/lib/history";
 import { formatRaceClock } from "@/lib/output/subtitles";
@@ -39,6 +40,42 @@ function useStoredSummaryText(): string | null | undefined {
 }
 
 /** 내 기록 공유 (작업 24): 동의한 경우에만 올리고, 올린 뒤에도 이 기기에서 지울 수 있다 */
+/** 상세 분석 창: 시간대별 격차 그래프 + 분석 글 + 기록 조건 */
+function AnalysisSheet({ summary, onClose }: { summary: RaceSummary; onClose: () => void }) {
+  const W = 320;
+  const H = 120;
+  const g = computeGraphGeometry(summary, W, H);
+  const path = g.line.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+  const lines = buildAnalysis(summary);
+  return (
+    <div className="absolute inset-0 z-20 flex items-end bg-black/60" role="dialog" aria-label="상세 분석" onClick={onClose}>
+      <div className="glass w-full max-h-[85%] overflow-y-auto !rounded-b-none bg-[#10131a]/95 p-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold">상세 분석</h2>
+          <button type="button" onClick={onClose} className="btn-secondary !px-3 !py-1 text-xs">닫기</button>
+        </div>
+        <p className="mt-3 text-xs text-white/55">시간대별 격차 (위쪽이 내가 앞, 최대 ±{g.rangeM}m)</p>
+        <svg viewBox={`0 0 ${W} ${H}`} className="mt-1 w-full" role="img" aria-label="시간대별 격차 그래프">
+          <line x1="0" x2={W} y1={g.zeroY} y2={g.zeroY} stroke="rgba(255,255,255,0.3)" strokeDasharray="4 4" />
+          <path d={path} fill="none" stroke="#facc15" strokeWidth="2.5" strokeLinejoin="round" />
+          {g.markers.map((m, i) => (
+            <circle key={i} cx={m.x} cy={g.zeroY} r="4" fill={m.type === "overtake" ? "#34d399" : "#f87171"} />
+          ))}
+        </svg>
+        <ul className="mt-3 flex flex-col gap-1.5 text-sm text-white/85">
+          {lines.map((line, i) => (
+            <li key={i}>• {line}</li>
+          ))}
+        </ul>
+        <p className="mt-3 text-xs text-white/55">
+          기록 조건: 나 {describeElevation(summary.myElevationGainM, summary.settings.distanceM)} · 상대{" "}
+          {describeElevation(summary.opponent.elevationGainM, summary.settings.distanceM)}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function SharePanel({ summary }: { summary: RaceSummary }) {
   const [sharedId, setSharedId] = useState<string | null>(summary.sharedId ?? null);
   const [busy, setBusy] = useState(false);
@@ -112,6 +149,7 @@ function SharePanel({ summary }: { summary: RaceSummary }) {
 export default function ResultScreen() {
   const router = useRouter();
   const text = useStoredSummaryText();
+  const [analysisOpen, setAnalysisOpen] = useState(false);
   const summary = text === undefined ? null : parseSummary(text);
 
   if (text === undefined) {
@@ -152,9 +190,10 @@ export default function ResultScreen() {
   ];
 
   return (
-    <main className="mx-auto flex h-dvh w-full max-w-md flex-col gap-3 overflow-hidden p-3">
+    <main className="relative mx-auto flex h-dvh w-full max-w-md flex-col gap-3 overflow-hidden p-3">
+      {analysisOpen && <AnalysisSheet summary={summary} onClose={() => setAnalysisOpen(false)} />}
       <section aria-label="코스 타임라인" className="glass relative min-h-0 flex-1 overflow-hidden !p-0">
-        <RouteMap variant="tall" label="레이스 코스와 추월 지점" progress={1} markers={timelineMarkers} />
+        <RouteMap variant="tall" distanceM={settings.distanceM} label="레이스 코스와 추월 지점" progress={1} markers={timelineMarkers} />
         <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/75 to-transparent p-4 pb-10">
           <p className="text-[11px] font-semibold text-white/60">
             {distanceKm}km · {displayName(summary.opponent.id)} ({OPPONENT_SOURCE[summary.opponent.source]})
@@ -186,6 +225,10 @@ export default function ResultScreen() {
           {summary.history.newBest ? ` · ${describeNewBest(summary.myTimeSec, summary.history.previousBestSec)}` : ""}
         </p>
       )}
+
+      <button type="button" onClick={() => setAnalysisOpen(true)} className="btn-secondary shrink-0 !py-2.5 text-sm">
+        ✨ 상세 분석 보기 (격차 그래프·추월 분석)
+      </button>
 
       <div className="shrink-0">
         <SharePanel key={summary.raceId ?? 0} summary={summary} />
