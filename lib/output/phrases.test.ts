@@ -141,3 +141,15 @@ describe("추월 예측 멘트", () => {
     expect(book.forPrediction(make("overtake", 0.3, "number"))).toContain("1초");
   });
 });
+
+describe("끊기지 않는 중계 멘트", () => {
+  it("중간 상황은 앞서는지·뒤처지는지·나란한지에 따라 다르게 말하고 격차와 남은 거리를 넣는다", () => {
+    const book = createPhraseBook(() => 0);
+    expect(book.forEvent({ type: "status", t: 30, gapM: 12.4, remainingM: 640 })).toContain("12");
+    expect(book.forEvent({ type: "status", t: 30, gapM: 12.4, remainingM: 640 })).toContain("640");
+    expect(book.forEvent({ type: "status", t: 30, gapM: -20, remainingM: 640 })).toContain("상대");
+    expect(book.forEvent({ type: "status", t: 30, gapM: 1, remainingM: 640 })).toContain("나란히");
+    expect(book.forEvent({ type: "start", t: 0 })).toContain("출발");
+    expect(book.forEvent({ type: "half", t: 100, gapM: 0, remainingM: 500 })).toContain("500");
+  });
+});

@@ -28,6 +28,10 @@ export const CLOSE_ENTER_M = 10;
 export const CLOSE_LEAVE_M = 15;
 /** 결승선까지 이 거리(미터) 이하가 남으면 "마지막 200m" */
 export const LAST_STRETCH_M = 200;
+/** 중간 상황(status)을 내보내는 간격(초). 앞서든 뒤처지든 이 간격마다 중계한다 */
+export const STATUS_INTERVAL_SEC = 15;
+/** 결승선까지 이 거리(미터) 이하가 남으면 중간 상황은 더 말하지 않는다 (마지막 200m 멘트와 결승이 있다) */
+const STATUS_STOP_M = 40;
 /** 결승선에 닿았다고 보는 오차 범위(미터). 거리 계산의 아주 작은 오차를 감안한다 */
 const ARRIVED_TOLERANCE_M = 1e-6;
 
@@ -44,7 +48,13 @@ export type RaceEvent =
   /** 1km 통과 (결승선과 겹치는 마지막 km는 결승 이벤트로 대신한다) */
   | { type: "km"; t: number; km: number }
   /** 결승선 통과. won은 내가 상대보다 먼저 도착했는지 */
-  | { type: "finish"; t: number; won: boolean };
+  | { type: "finish"; t: number; won: boolean }
+  /** 출발: 레이스가 시작됐다 */
+  | { type: "start"; t: number }
+  /** 절반 지점 통과. remainingM은 남은 거리 */
+  | { type: "half"; t: number; gapM: number; remainingM: number }
+  /** 중간 상황: 이기든 지든 일정한 시간마다 지금 누가 얼마나 앞서는지 알린다 (gapM은 내가 앞서면 +) */
+  | { type: "status"; t: number; gapM: number; remainingM: number };
 
 /** 1초마다의 결과 */
 export type RaceTick = {
@@ -83,12 +93,20 @@ export function createRaceEngine(setup: RaceSetup): RaceEngine {
   let kmSent = 0;
   let last200Sent = false;
   let finishedTick: RaceTick | null = null;
+  let started = false;
+  let halfSent = false;
+  let lastStatusAt = 0;
 
   return {
     update(t, myDistanceM) {
       if (finishedTick) return { ...finishedTick, events: [] };
 
       const events: RaceEvent[] = [];
+      if (!started) {
+        started = true;
+        lastStatusAt = t;
+        events.push({ type: "start", t });
+      }
 
       // 1) 격차와 추월·추월당함
       const { snapshot, event: leadEvent } = gapEngine.update(t, myDistanceM);
@@ -121,6 +139,14 @@ export function createRaceEngine(setup: RaceSetup): RaceEngine {
         if (kmSent * 1000 < race) events.push({ type: "km", t, km: kmSent });
       }
       const arrived = race - traveled <= ARRIVED_TOLERANCE_M;
+      if (!halfSent && traveled >= race / 2 && !arrived) {
+        halfSent = true;
+        events.push({ type: "half", t, gapM: snapshot.gapM, remainingM: race - traveled });
+      }
+      if (!arrived && t - lastStatusAt >= STATUS_INTERVAL_SEC && race - traveled > STATUS_STOP_M) {
+        lastStatusAt = t;
+        events.push({ type: "status", t, gapM: snapshot.gapM, remainingM: race - traveled });
+      }
       if (!last200Sent && race - traveled <= LAST_STRETCH_M) {
         last200Sent = true;
         events.push({ type: "last200m", t });

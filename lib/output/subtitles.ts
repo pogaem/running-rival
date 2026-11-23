@@ -54,6 +54,16 @@ export function formatRaceEvent(event: RaceEvent): Subtitle {
       return { kind: "distance", tone: "neutral", text: "마지막 200m! 결승선이 보입니다" };
     case "km":
       return { kind: "distance", tone: "neutral", text: `${event.km}km 통과` };
+    case "start":
+      return { kind: "distance", tone: "neutral", text: "출발! 레이스가 시작됩니다" };
+    case "half":
+      return { kind: "distance", tone: "neutral", text: `절반 통과 (남은 ${Math.round(event.remainingM)}m, 격차 ${formatGap(event.gapM)})` };
+    case "status":
+      return {
+        kind: "lead",
+        tone: Math.abs(event.gapM) < 3 ? "neutral" : event.gapM > 0 ? "good" : "bad",
+        text: `중간 상황: ${Math.abs(event.gapM) < 3 ? "나란히 달리는 중" : event.gapM > 0 ? "도전자가 앞섬" : "상대가 앞섬"} (격차 ${formatGap(event.gapM)}, 남은 ${Math.round(event.remainingM)}m)`,
+      };
     case "finish":
       return event.won
         ? { kind: "finish", tone: "good", text: "결승선 통과! 도전자의 승리입니다!" }

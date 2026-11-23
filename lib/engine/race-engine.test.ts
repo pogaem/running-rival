@@ -152,3 +152,24 @@ describe("접전 사건 (가짜 격차)", () => {
     expect(closeEvents([30, 8, 12, 14, 11, 13, 9, 14])).toHaveLength(1); // 처음 들어온 것 하나만
   });
 });
+
+describe("끊기지 않는 중계: 출발·절반·중간 상황", () => {
+  it("1km 대결에서도 출발, 절반, 15초마다 중간 상황이 나오고 결승 직전에는 그치며, 앞서든 뒤처지든 나온다", () => {
+    for (const rivalId of ["가상러너-01", "가상러너-09"]) {
+      const { events } = runDemo(rivalId, 1000);
+      expect(events[0].type).toBe("start");
+      expect(events.filter((e) => e.type === "half")).toHaveLength(1);
+      const statuses = events.filter((e) => e.type === "status");
+      expect(statuses.length).toBeGreaterThanOrEqual(10); // 320초 / 15초 ≈ 21번
+      for (let i = 1; i < statuses.length; i++) expect(statuses[i].t - statuses[i - 1].t).toBeGreaterThanOrEqual(15);
+      const finishAt = events.find((e) => e.type === "finish")!.t;
+      expect(statuses[statuses.length - 1].t).toBeLessThan(finishAt);
+    }
+  });
+
+  it("출발과 절반은 한 번씩만 나온다", () => {
+    const { events } = runDemo("가상러너-05", 3000);
+    expect(events.filter((e) => e.type === "start")).toHaveLength(1);
+    expect(events.filter((e) => e.type === "half")).toHaveLength(1);
+  });
+});

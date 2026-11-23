@@ -63,6 +63,29 @@ const PHRASES = {
     "상대가 먼저 골인했습니다. 도전자, 수고했습니다!",
     "아쉬운 결과입니다. 그래도 끝까지 달렸습니다!",
   ],
+  start: ["출발! 도전자와 상대, 레이스가 시작됩니다!", "자, 출발합니다! 도전자, 좋은 스타트입니다!", "경기 시작! 끝까지 함께 지켜봅니다!"],
+  half: [
+    "절반을 통과합니다! 남은 거리는 {remain}미터입니다!",
+    "반환점을 돌았습니다! 이제 {remain}미터 남았습니다!",
+    "벌써 절반입니다! {remain}미터만 더 가면 결승선입니다!",
+  ],
+  statusAhead: [
+    "도전자가 상대를 {gap}미터 앞서 달립니다! 남은 거리 {remain}미터!",
+    "도전자가 앞서 갑니다! 격차 {gap}미터, 결승까지 {remain}미터!",
+    "선두는 도전자! 상대와 {gap}미터 차이입니다!",
+    "도전자, 리드를 지키고 있습니다! {gap}미터 앞섭니다!",
+  ],
+  statusBehind: [
+    "상대가 {gap}미터 앞서 있습니다! 도전자, 남은 거리 {remain}미터!",
+    "도전자가 {gap}미터 뒤에서 쫓고 있습니다! 아직 승부는 모릅니다!",
+    "상대가 앞서지만 격차는 {gap}미터뿐입니다! 결승까지 {remain}미터!",
+    "도전자, 상대의 뒤를 바짝 쫓습니다! {gap}미터 차이입니다!",
+  ],
+  statusEven: [
+    "두 선수가 나란히 달립니다! 남은 거리 {remain}미터!",
+    "거의 같은 위치입니다! 승부는 지금부터입니다!",
+    "한 발짝도 차이가 없습니다! 결승까지 {remain}미터!",
+  ],
   predictOvertakeNumber: [
     "도전자, {sec}초 뒤 추월 페이스입니다!",
     "이 페이스라면 {sec}초 뒤에 따라잡습니다!",
@@ -83,6 +106,11 @@ export function phraseCandidates(key: PhraseKey): readonly string[] {
 /** {이름} 자리를 값으로 바꾼다 */
 function fill(template: string, vars: Vars): string {
   return template.replace(/\{(\w+)\}/g, (_, name: string) => String(vars[name] ?? ""));
+}
+
+/** 남은 거리를 읽기 좋게 10미터 단위로 맞춘다 (최소 10) */
+function roundTo10(meters: number): number {
+  return Math.max(10, Math.round(meters / 10) * 10);
 }
 
 export type PhraseBook = {
@@ -128,6 +156,16 @@ export function createPhraseBook(random: Random = Math.random): PhraseBook {
           return pick("km", { km: event.km });
         case "finish":
           return pick(event.won ? "finishWon" : "finishLost");
+        case "start":
+          return pick("start");
+        case "half":
+          return pick("half", { remain: roundTo10(event.remainingM) });
+        case "status": {
+          const gap = Math.abs(Math.round(event.gapM));
+          const remain = roundTo10(event.remainingM);
+          if (gap < 3) return pick("statusEven", { remain });
+          return pick(event.gapM > 0 ? "statusAhead" : "statusBehind", { gap, remain });
+        }
       }
     },
 

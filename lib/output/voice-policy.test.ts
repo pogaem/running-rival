@@ -22,10 +22,10 @@ const STAGE = (t: number): RaceEvent => ({ type: "winStage", t, from: "close", t
 const FINISH = (t: number): RaceEvent => ({ type: "finish", t, won: true });
 
 describe("설정값", () => {
-  it("기본 강도는 일반이고, 최소 간격은 20~30초 안이다 (PRD)", () => {
+  it("기본 강도는 일반이고, 최소 간격은 10~15초다 (짧은 대결이라 PRD 초안 25초에서 줄임)", () => {
     expect(DEFAULT_INTENSITY).toBe("normal");
-    expect(VOICE_MIN_GAP_SEC).toBeGreaterThanOrEqual(20);
-    expect(VOICE_MIN_GAP_SEC).toBeLessThanOrEqual(30);
+    expect(VOICE_MIN_GAP_SEC).toBeGreaterThanOrEqual(10);
+    expect(VOICE_MIN_GAP_SEC).toBeLessThanOrEqual(15);
   });
 });
 
@@ -78,12 +78,12 @@ describe("createVoicePolicy · 이벤트 (최소 간격)", () => {
     expect(policy.decideEvent(KM(320))).toEqual({ speak: true, priority: false });
   });
 
-  it("직전 멘트 뒤 25초가 지나지 않은 일반 이벤트는 말하지 않는다", () => {
+  it("직전 멘트 뒤 12초가 지나지 않은 일반 이벤트는 말하지 않는다", () => {
     const policy = createVoicePolicy();
     policy.decideEvent(KM(100));
-    expect(policy.decideEvent(LAST200(110))).toEqual({ speak: false, reason: "gap" });
-    expect(policy.decideEvent(LAST200(124.9))).toEqual({ speak: false, reason: "gap" });
-    expect(policy.decideEvent(LAST200(125))).toEqual({ speak: true, priority: false }); // 정확히 25초는 허용
+    expect(policy.decideEvent(LAST200(105))).toEqual({ speak: false, reason: "gap" });
+    expect(policy.decideEvent(LAST200(111.9))).toEqual({ speak: false, reason: "gap" });
+    expect(policy.decideEvent(LAST200(112))).toEqual({ speak: true, priority: false }); // 정확히 12초는 허용
   });
 
   it("말하지 않은 이벤트는 간격을 새로 시작하지 않는다 (건너뛴 이벤트 때문에 다음 멘트가 늦어지지 않는다)", () => {

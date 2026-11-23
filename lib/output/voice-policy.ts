@@ -20,8 +20,8 @@ export const INTENSITY_LABEL: Record<Intensity, string> = {
 /** 기본 중계 강도 */
 export const DEFAULT_INTENSITY: Intensity = "normal";
 
-/** 멘트 사이의 최소 간격(초). PRD는 20~30초라고 했고 그중 25초를 초안으로 정했다 */
-export const VOICE_MIN_GAP_SEC = 25;
+/** 멘트 사이의 최소 간격(초). PRD 초안은 25초였지만, 1km·3km의 짧은 대결에서는 중계가 너무 적어서 12초로 줄였다 */
+export const VOICE_MIN_GAP_SEC = 12;
 
 /** 숫자 없이 "따라붙고 있습니다"만 말하는 예측은 이만큼(초) 간격을 두고 말한다 (같은 말이 반복되지 않게. 초안) */
 export const VAGUE_PREDICTION_GAP_SEC = 60;
@@ -33,7 +33,7 @@ const PRIORITY_EVENTS: ReadonlySet<RaceEvent["type"]> = new Set(["overtake", "ov
 const EVENTS_BY_INTENSITY: Record<Intensity, ReadonlySet<RaceEvent["type"]>> = {
   off: new Set(),
   minimal: new Set(["overtake", "overtaken", "finish"]),
-  normal: new Set(["overtake", "overtaken", "finish", "last200m", "km", "closeEnter", "closeLeave"]),
+  normal: new Set(["overtake", "overtaken", "finish", "last200m", "km", "closeEnter", "closeLeave", "start", "half", "status"]),
   active: new Set([
     "overtake",
     "overtaken",
@@ -43,6 +43,9 @@ const EVENTS_BY_INTENSITY: Record<Intensity, ReadonlySet<RaceEvent["type"]>> = {
     "closeEnter",
     "closeLeave",
     "winStage",
+    "start",
+    "half",
+    "status",
   ]),
 };
 
