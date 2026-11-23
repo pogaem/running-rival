@@ -111,7 +111,10 @@ export default function StartScreen() {
         )}
 
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-white/70">평소 페이스</h2>
+          <div>
+            <h2 className="text-sm font-semibold text-white/70">평소 페이스</h2>
+            <p className="text-[11px] text-white/50">1km를 뛰는 데 걸리는 시간</p>
+          </div>
           <div className="flex items-center gap-1.5">
             <input
               aria-label="분"
@@ -130,9 +133,14 @@ export default function StartScreen() {
               onChange={(event) => setSeconds(event.target.value)}
               className="field !px-2 !py-1.5 !text-xl w-14"
             />
-            <span className="w-14 text-xs text-white/60">/km</span>
+            <span className="w-14 text-xs text-white/60">/ 1km</span>
           </div>
         </div>
+        {pace.ok && distance.ok && (
+          <p className="text-right text-[11px] text-white/50">
+            {distance.distanceM / 1000}km를 뛰면 약 {formatPace(Math.round((pace.paceSecPerKm * distance.distanceM) / 1000))}
+          </p>
+        )}
         {!pace.ok && (
           <p role="alert" className="text-xs text-red-400">
             {pace.message}

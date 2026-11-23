@@ -75,7 +75,7 @@ export function parsePaceInput(minutesText: string, secondsText: string): PacePa
   if (pace < MIN_PACE_SEC_PER_KM || pace > MAX_PACE_SEC_PER_KM) {
     return {
       ok: false,
-      message: `페이스는 ${formatPace(MIN_PACE_SEC_PER_KM)} ~ ${formatPace(MAX_PACE_SEC_PER_KM)} /km 사이로 적어 주세요`,
+      message: `1km당 ${formatPace(MIN_PACE_SEC_PER_KM)} ~ ${formatPace(MAX_PACE_SEC_PER_KM)} 사이로 적어 주세요 (총 시간이 아니라 1km를 뛰는 시간)`,
     };
   }
   return { ok: true, paceSecPerKm: pace };
