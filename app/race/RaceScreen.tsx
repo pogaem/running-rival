@@ -17,7 +17,7 @@ import { distanceBetweenM } from "@/lib/geo";
 import { createDemoInput, DEMO_SPEED } from "@/lib/input/demo-input";
 import { createBrowserGpsEnv, createGpsInput } from "@/lib/input/gps-input";
 import { createElevationTracker } from "@/lib/input/elevation";
-import { appendGapPoint, buildRaceSummary, serializeSummary, SUMMARY_STORAGE_KEY, type GapPoint } from "@/lib/result";
+import { appendGapPoint, buildRaceSummary, formatMargin, serializeSummary, SUMMARY_STORAGE_KEY, type GapPoint } from "@/lib/result";
 import { createAutoPause } from "@/lib/input/auto-pause";
 import { createPositionFilter } from "@/lib/input/gps-filter";
 import type { InputError, PositionInput } from "@/lib/input/types";
@@ -155,6 +155,8 @@ function RaceScreenInner() {
   const raceTimeScale = settings.source === "gps" ? 1 : DEMO_SPEED;
   const [intensity, setIntensity] = useState<Intensity>(settings.intensity);
   const [tick, setTick] = useState<RaceTick | null>(null);
+  /** 결승선을 지난 뒤 보여 줄 최종 결과. 결승선에서는 두 러너 거리가 같아 격차로는 승패를 알 수 없다 */
+  const [finalResult, setFinalResult] = useState<{ won: boolean; marginSec: number } | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [running, setRunning] = useState(true);
   // 실제 GPS일 때: 마지막 위치 정확도(m)와 위치 오류
@@ -396,6 +398,7 @@ function RaceScreenInner() {
           });
           if (summary) {
             summary.raceId = Date.now();
+            setFinalResult({ won: summary.won, marginSec: summary.opponentTimeSec - summary.myTimeSec });
             // 전적과 개인 최고 기록에 반영한다 (이 기기에만 저장)
             const outcome = recordRace(parseHistory(loadHistoryText()), {
               opponentId: summary.opponent.id,
@@ -523,7 +526,7 @@ function RaceScreenInner() {
     { fraction: trackPercent(rivalDistance) / 100, label: `상대 ${(rivalDistance / 1000).toFixed(2)}km`, tone: "rival", side: meAhead ? "right" : "left", dy: meAhead ? -15 : 15 },
     { fraction: trackPercent(myDistance) / 100, label: `나 ${(myDistance / 1000).toFixed(2)}km`, tone: "me", side: meAhead ? "left" : "right", dy: meAhead ? 15 : -15 },
   ];
-  const gapPosition = 50 + (Math.max(-GAP_BAR_RANGE_M, Math.min(GAP_BAR_RANGE_M, gap)) / GAP_BAR_RANGE_M) * 50;
+  const gapPosition = finalResult ? (finalResult.won ? 92 : 8) : 50 + (Math.max(-GAP_BAR_RANGE_M, Math.min(GAP_BAR_RANGE_M, gap)) / GAP_BAR_RANGE_M) * 50;
   const percent = tick?.estimate ? displayPercent(tick.estimate.probability) : null;
   const finished = tick?.finished ?? false;
 
@@ -708,10 +711,16 @@ function RaceScreenInner() {
       <section aria-label="나와 상대의 격차" className="glass shrink-0 px-4 py-3">
         <div className="flex items-baseline justify-between gap-3">
           <p className="text-xl font-bold tabular-nums">
-            {tick ? `${formatGap(gap)} ${gap >= 0 ? "내가 앞서는 중" : "상대가 앞서는 중"}` : "출발 준비 중"}
+            {finalResult
+              ? finalResult.won
+                ? `내 승리! ${formatMargin(finalResult.marginSec)} 먼저 도착`
+                : `상대 승리 · ${formatMargin(finalResult.marginSec)} 차이`
+              : tick
+                ? `${formatGap(gap)} ${gap >= 0 ? "내가 앞서는 중" : "상대가 앞서는 중"}`
+                : "출발 준비 중"}
           </p>
           <p className="shrink-0 text-sm font-semibold tabular-nums text-white/70">
-            {percent === null ? "승률 계산 중" : `승률 ${percent}%`}
+            {finalResult ? "경기 종료" : percent === null ? "승률 계산 중" : `승률 ${percent}%`}
           </p>
         </div>
         <div className="relative my-2.5 h-2.5 rounded-full bg-white/10" role="img" aria-label={`격차 ${formatGap(gap)}`}>
