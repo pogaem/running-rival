@@ -17,6 +17,7 @@ import { createDemoInput, DEMO_SPEED } from "@/lib/input/demo-input";
 import { makeDemoTrack } from "@/lib/input/synthetic-track";
 import type { PositionSample } from "@/lib/input/types";
 import { createBrowserVibratorEnv, createVibrator, hapticPatternFor, type HapticStatus, type Vibrator } from "@/lib/output/haptics";
+import { createBrowserSfxEnv, createSfx, type Sfx } from "@/lib/output/sfx";
 import { createPhraseBook, type PhraseBook } from "@/lib/output/phrases";
 import { createBrowserSpeakerEnv, createSpeaker, type Speaker } from "@/lib/output/speaker";
 import {
@@ -147,6 +148,7 @@ export default function RaceScreen() {
   const speakerRef = useRef<Speaker | null>(null);
   const policyRef = useRef<VoicePolicy | null>(null);
   const vibratorRef = useRef<Vibrator | null>(null);
+  const sfxRef = useRef<Sfx | null>(null);
   const intensityRef = useRef<Intensity>(DEFAULT_INTENSITY);
   const bookRef = useRef<PhraseBook | null>(null);
 
@@ -168,6 +170,8 @@ export default function RaceScreen() {
     for (const event of events) {
       const id = nextLogId.current++;
       const decision = policy.decideEvent(event);
+      // 효과음(함성·심장 박동)도 음성 간격과 상관없이 이벤트에 맞춰 바로 낸다
+      sfxRef.current?.handleEvent(event, intensityRef.current);
       // 진동은 음성 간격과 상관없이, 중계 강도에 맞는 이벤트에서 바로 낸다. 끄기에서는 내지 않는다
       const haptic: HapticStatus =
         vibrator && intensityAllows(intensityRef.current, event)
@@ -230,6 +234,7 @@ export default function RaceScreen() {
       input.stop();
       speakerRef.current?.cancel();
       vibratorRef.current?.cancel();
+      sfxRef.current?.stopAll();
     };
   }, [phase, outputMoments]);
 
@@ -278,6 +283,9 @@ export default function RaceScreen() {
     policyRef.current = createVoicePolicy({ intensity });
     intensityRef.current = intensity;
     vibratorRef.current = createVibrator(createBrowserVibratorEnv());
+    const sfx = createSfx(createBrowserSfxEnv());
+    void sfx.preload(); // 버튼을 누른 직후에 불러 두면 첫 효과음 전에 준비된다
+    sfxRef.current = sfx;
     bookRef.current = createPhraseBook();
     setPhase("running");
   };
@@ -340,6 +348,9 @@ export default function RaceScreen() {
             음성 중계: {voiceSupport.speech ? "이 기기에서 지원됩니다" : "이 기기에서는 지원되지 않습니다 (자막만 나옵니다)"}
           </p>
           <p className="text-xs text-foreground/60">
+            효과음: 추월·승리 때 관중 함성, 격차 10m 이내일 때 심장 박동이 깔립니다. 음원 출처는 아래 &quot;음원 출처&quot;를 참고하세요.
+          </p>
+          <p className="text-xs text-foreground/60">
             진동: {voiceSupport.vibration ? "이 기기에서 지원됩니다" : "이 기기에서는 지원되지 않습니다 (음성과 자막만 나옵니다)"}
           </p>
           <p className="text-xs text-foreground/60">
@@ -347,6 +358,22 @@ export default function RaceScreen() {
             {voiceSupport.audioSession
               ? "멘트 동안 다른 소리를 낮춥니다"
               : "다른 소리를 낮출 수 없는 기기라서 멘트 앞에 짧은 알림음을 넣습니다"}
+          </p>
+        </section>
+
+        <section aria-label="음원 출처" className="flex flex-col gap-1 rounded-lg border border-foreground/30 p-3 text-xs text-foreground/60">
+          <h2 className="text-sm font-semibold text-foreground">음원 출처</h2>
+          <p>
+            관중 함성: Gregor Quendel, &quot;Free Crowd Cheering Sounds&quot; (CC BY 4.0) ·{" "}
+            <a className="underline" href="https://opengameart.org/content/free-crowd-cheering-sounds" target="_blank" rel="noreferrer">
+              OpenGameArt
+            </a>
+          </p>
+          <p>
+            심장 박동: bart, &quot;heartbeat sounds&quot; (CC0) ·{" "}
+            <a className="underline" href="https://opengameart.org/content/heartbeat-sounds" target="_blank" rel="noreferrer">
+              OpenGameArt
+            </a>
           </p>
         </section>
 
