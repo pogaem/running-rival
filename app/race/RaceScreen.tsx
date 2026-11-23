@@ -220,7 +220,7 @@ export default function RaceScreen() {
   useEffect(() => {
     if (phase !== "running") return;
     if (!opponent) return;
-    const engine = createRaceEngine({ opponent, raceDistanceM }, { timeScale: raceTimeScale });
+    const engine = createRaceEngine({ opponent, raceDistanceM });
     // 데모: 입력한 평소 페이스로 일정하게 달리는 "만든 경로"를 10배속으로 재생한다.
     // GPS: 폰의 실제 위치를 받는다. 둘 다 같은 모양(PositionInput)이라 아래는 똑같이 동작한다
     const input: PositionInput =

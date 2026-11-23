@@ -28,8 +28,9 @@ export const CLOSE_ENTER_M = 10;
 export const CLOSE_LEAVE_M = 15;
 /** 결승선까지 이 거리(미터) 이하가 남으면 "마지막 200m" */
 export const LAST_STRETCH_M = 200;
-/** 중간 상황(status)을 내보내는 간격(실제 시계 기준 초). 앞서든 뒤처지든 이 간격마다 중계한다. 데모 배속이면 timeScale을 곱해 쓴다 */
-export const STATUS_INTERVAL_SEC = 20;
+/** 중간 상황(status)을 내보내는 거리 간격(미터). 앞서든 뒤처지든 내가 이만큼 달릴 때마다 중계한다.
+ * 시간이 아니라 거리 기준이라 데모 배속이나 페이스에 상관없이 코스 위 같은 자리에서 중계가 나온다 */
+export const STATUS_INTERVAL_M = 350;
 /** 결승선까지 이 거리(미터) 이하가 남으면 중간 상황은 더 말하지 않는다 (마지막 200m 멘트와 결승이 있다) */
 const STATUS_STOP_M = 40;
 /** 결승선에 닿았다고 보는 오차 범위(미터). 거리 계산의 아주 작은 오차를 감안한다 */
@@ -81,13 +82,7 @@ export type RaceEngine = {
   update(t: number, myDistanceM: number): RaceTick;
 };
 
-export type RaceEngineOptions = {
-  /** 레이스 시간이 실제 시계보다 몇 배 빠른가 (데모 10배속이면 10). 중간 상황 간격에 곱한다. 기본 1 */
-  timeScale?: number;
-};
-
-export function createRaceEngine(setup: RaceSetup, options: RaceEngineOptions = {}): RaceEngine {
-  const statusIntervalSec = STATUS_INTERVAL_SEC * (options.timeScale ?? 1);
+export function createRaceEngine(setup: RaceSetup): RaceEngine {
   const gapEngine = createGapEngine(setup);
   const predictor = createPredictor(setup);
   const winTracker = createWinTracker(setup);
@@ -101,7 +96,7 @@ export function createRaceEngine(setup: RaceSetup, options: RaceEngineOptions = 
   let finishedTick: RaceTick | null = null;
   let started = false;
   let halfSent = false;
-  let lastStatusAt = 0;
+  let lastStatusDistanceM = 0;
 
   return {
     update(t, myDistanceM) {
@@ -110,7 +105,6 @@ export function createRaceEngine(setup: RaceSetup, options: RaceEngineOptions = 
       const events: RaceEvent[] = [];
       if (!started) {
         started = true;
-        lastStatusAt = t;
         events.push({ type: "start", t });
       }
 
@@ -149,8 +143,8 @@ export function createRaceEngine(setup: RaceSetup, options: RaceEngineOptions = 
         halfSent = true;
         events.push({ type: "half", t, gapM: snapshot.gapM, remainingM: race - traveled });
       }
-      if (!arrived && t - lastStatusAt >= statusIntervalSec && race - traveled > STATUS_STOP_M) {
-        lastStatusAt = t;
+      if (!arrived && traveled - lastStatusDistanceM >= STATUS_INTERVAL_M && race - traveled > STATUS_STOP_M) {
+        lastStatusDistanceM = traveled;
         events.push({ type: "status", t, gapM: snapshot.gapM, remainingM: race - traveled });
       }
       if (!last200Sent && race - traveled <= LAST_STRETCH_M) {

@@ -158,7 +158,7 @@ export default function StartScreen() {
             ))}
           </div>
           <p className="text-xs text-foreground/60">
-            최소는 추월·결승만, 일반은 출발·20초마다 중간 상황(앞서든 뒤처지든)·절반·마지막 200m·접전까지, 적극은 추월 예측과 승률 변화까지 말하되, 한마디 하고 쉬었다가 다음 말을 합니다.
+            최소는 추월·결승만, 일반은 출발·0.35km마다 중간 상황(앞서든 뒤처지든)·절반·마지막 200m·접전까지, 적극은 추월 예측과 승률 변화까지 말하되, 한마디 하고 쉬었다가 다음 말을 합니다.
           </p>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={muted} onChange={(event) => setMuted(event.target.checked)} />
