@@ -70,8 +70,8 @@ export type RouteMarker = {
 };
 
 const TONE = {
-  me: { fill: "#ffffff", text: "#0a0c12" },
-  rival: { fill: "#fb923c", text: "#0a0c12" },
+  me: { fill: "#facc15", text: "#0a0c12" },
+  rival: { fill: "#ffffff", text: "#0a0c12" },
   flag: { fill: "rgba(255,255,255,0.18)", text: "#ffffff" },
   km: { fill: "rgba(255,255,255,0.12)", text: "rgba(255,255,255,0.8)" },
 } as const;
@@ -132,7 +132,7 @@ export default function RouteMap({
         const y = Math.min(Math.max(p.y - 11 + (marker.dy ?? 0), 4), H - 26);
         return (
           <g key={i}>
-            <circle cx={p.x} cy={p.y} r={marker.tone === "km" ? 3.5 : 6} fill={marker.tone === "rival" ? "#fb923c" : "#ffffff"} stroke="#0a0c12" strokeWidth="2" />
+            <circle cx={p.x} cy={p.y} r={marker.tone === "km" ? 3.5 : 6} fill={marker.tone === "me" ? "#facc15" : "#ffffff"} stroke="#0a0c12" strokeWidth="2" />
             <rect x={x} y={y} width={width} height="22" rx="11" fill={tone.fill} />
             <text x={x + width / 2} y={y + 15} textAnchor="middle" fontSize="11" fontWeight="700" fill={tone.text}>
               {marker.label}
