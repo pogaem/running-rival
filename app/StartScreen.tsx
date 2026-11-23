@@ -16,7 +16,7 @@ import {
   parsePaceInput,
   parseDistanceInput,
   matchForSettings,
-  settingsToQuery,
+  freshRaceHref,
   type RaceSource,
 } from "@/lib/race-settings";
 
@@ -76,7 +76,7 @@ export default function StartScreen() {
 
   const start = (source: RaceSource) => {
     if (!pace.ok || !distance.ok) return;
-    router.push(`/race?${settingsToQuery({ source, distanceM, paceSecPerKm: pace.paceSecPerKm, intensity, opponentId: opponent?.id })}`);
+    router.push(freshRaceHref({ source, distanceM, paceSecPerKm: pace.paceSecPerKm, intensity, opponentId: opponent?.id }));
   };
 
   return (

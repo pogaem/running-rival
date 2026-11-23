@@ -10,7 +10,8 @@ import { useState, useSyncExternalStore } from "react";
 import { shareMyRecord, unshareMyRecord } from "@/lib/shared/client";
 import { describeNewBest } from "@/lib/history";
 import { formatRaceClock } from "@/lib/output/subtitles";
-import { settingsToQuery } from "@/lib/race-settings";
+import { freshRaceHref } from "@/lib/race-settings";
+import { useRouter } from "next/navigation";
 import {
   computeGraphGeometry,
   describeElevation,
@@ -159,6 +160,7 @@ function SharePanel({ summary }: { summary: RaceSummary }) {
 }
 
 export default function ResultScreen() {
+  const router = useRouter();
   const text = useStoredSummaryText();
   const summary = text === undefined ? null : parseSummary(text);
 
@@ -185,7 +187,6 @@ export default function ResultScreen() {
   const { settings } = summary;
   const distanceKm = settings.distanceM / 1000;
   const margin = summary.opponentTimeSec - summary.myTimeSec; // 양수면 내가 빠름
-  const rematchHref = `/race?${settingsToQuery(settings)}`;
   const OPPONENT_SOURCE = { virtual: "가상 러너", camp: "캠프 참가자", mine: "내 기록", shared: "다른 러너 기록" } as const;
 
   // 코스 타임라인: 출발, 추월 지점(걸린 시간 비율로 위치를 잡는다), 도착
@@ -268,7 +269,14 @@ export default function ResultScreen() {
       </section>
 
       <div className="mt-auto flex gap-3">
-        <Link href={rematchHref} className="flex-1 btn-secondary">
+        <Link
+          href="/race"
+          onClick={(event) => {
+            event.preventDefault();
+            router.push(freshRaceHref(settings));
+          }}
+          className="flex-1 btn-secondary"
+        >
           리매치
         </Link>
         <Link href="/" className="flex-1 btn-primary">

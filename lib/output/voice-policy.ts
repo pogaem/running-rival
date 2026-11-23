@@ -24,10 +24,10 @@ export const DEFAULT_INTENSITY: Intensity = "normal";
  * 멘트 사이의 최소 간격(실제 시계 기준 초). PRD 초안은 25초였다.
  * 데모는 10배속이라 레이스 시간으로는 이 값의 10배가 지나야 같은 느낌이 된다 → timeScale 옵션으로 곱한다.
  */
-export const VOICE_MIN_GAP_SEC = 5;
+export const VOICE_MIN_GAP_SEC = 4;
 
-/** 적극은 추월 예측·승률 변화까지 말해서 멘트가 쉴 틈 없이 이어지기 쉽다. 한마디 하고 쉬도록 간격을 더 둔다 */
-export const ACTIVE_VOICE_MIN_GAP_SEC = 7;
+/** 적극도 같은 간격. 0.25km마다 중간 상황이 나오는데 간격이 더 길면(빠른 페이스·데모에서) 말이 계속 건너뛰어진다 */
+export const ACTIVE_VOICE_MIN_GAP_SEC = 4;
 
 /** 숫자 없이 "따라붙고 있습니다"만 말하는 예측은 이만큼(초) 간격을 두고 말한다 (같은 말이 반복되지 않게. 초안) */
 export const VAGUE_PREDICTION_GAP_SEC = 60;

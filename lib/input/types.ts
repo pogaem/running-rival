@@ -41,4 +41,8 @@ export type PositionInput = {
   start(handlers: InputHandlers): void;
   /** 입력을 멈춘다. 멈춘 입력은 다시 시작할 수 없다 */
   stop(): void;
+  /** 입력을 잠시 멈춘다(데모만). 있으면 일시정지에서 이것을 쓰고, 없으면(GPS) 받은 점을 건너뛰고 시간을 뺀다 */
+  pause?(): void;
+  /** 멈춘 입력을 이어간다(데모만) */
+  resume?(): void;
 };

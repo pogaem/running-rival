@@ -83,6 +83,14 @@ export function parsePaceInput(minutesText: string, secondsText: string): PacePa
 
 const INTENSITIES: readonly Intensity[] = ["off", "minimal", "normal", "active"];
 
+/**
+ * 레이스 화면 주소. 매번 다른 값(n)을 붙여서 "같은 주소"로 들어가지 않게 한다.
+ * 같은 주소로 다시 들어가면 앱이 지난 레이스 화면을 그대로 되살려서, "소리 켜고 시작" 없이 레이스가 바로 도는 문제가 있었다.
+ */
+export function freshRaceHref(settings: RaceSettings): string {
+  return `/race?${settingsToQuery(settings)}&n=${Date.now()}`;
+}
+
 /** 설정을 주소에 붙일 글(쿼리)로 만든다 */
 export function settingsToQuery(settings: RaceSettings): string {
   const params = new URLSearchParams({

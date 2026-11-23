@@ -34,6 +34,26 @@ describe("createDemoInput (10배속 재생)", () => {
     expect(received).toEqual([0, 1, 2, 3, 4]);
   });
 
+  it("일시정지하면 점이 멈추고, 이어가면 멈췄던 자리에서 이어진다 (끝나지도 않는다)", () => {
+    const received: number[] = [];
+    const onEnd = vi.fn();
+    const input = createDemoInput(shortTrack());
+    input.start({ onSample: (s) => received.push(s.t), onEnd });
+    vi.advanceTimersByTime(150); // 0, 1
+    input.pause?.();
+    vi.advanceTimersByTime(10000);
+    expect(received).toEqual([0, 1]);
+    expect(onEnd).not.toHaveBeenCalled();
+    input.resume?.();
+    vi.advanceTimersByTime(49); // 다음 점(2초)은 원래 200ms 시점 → 멈추기 전 50ms 남았다
+    expect(received).toEqual([0, 1]);
+    vi.advanceTimersByTime(1);
+    expect(received).toEqual([0, 1, 2]);
+    vi.advanceTimersByTime(300);
+    expect(received).toEqual([0, 1, 2, 3, 4]);
+    expect(onEnd).toHaveBeenCalledTimes(1);
+  });
+
   it("마지막 점을 보낸 뒤 끝났다고 한 번만 알린다", () => {
     const onEnd = vi.fn();
     createDemoInput(shortTrack()).start({ onSample: () => {}, onEnd });

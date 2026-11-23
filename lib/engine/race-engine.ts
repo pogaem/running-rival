@@ -149,6 +149,7 @@ export function createRaceEngine(setup: RaceSetup): RaceEngine {
       const arrived = race - traveled <= ARRIVED_TOLERANCE_M;
       if (!halfSent && traveled >= race / 2 && !arrived) {
         halfSent = true;
+        lastStatusDistanceM = traveled; // 절반 멘트와 중간 상황이 겹쳐 나오지 않게 한다
         events.push({ type: "half", t, gapM: snapshot.gapM, remainingM: race - traveled });
       }
       if (!arrived && traveled - lastStatusDistanceM >= statusIntervalM && race - traveled > STATUS_STOP_M) {
@@ -157,6 +158,7 @@ export function createRaceEngine(setup: RaceSetup): RaceEngine {
       }
       if (!last200Sent && race - traveled <= LAST_STRETCH_M) {
         last200Sent = true;
+        lastStatusDistanceM = traveled;
         events.push({ type: "last200m", t });
       }
       if (arrived) {

@@ -26,8 +26,8 @@ import { createTrackRecorder } from "@/lib/track-recorder";
 import { useOpponentPool } from "../useOpponentPool";
 import { createInterruptionTracker } from "@/lib/input/interruption";
 import { loadHistoryText, parseHistory, recordRace, rivalryIntro, saveHistory } from "@/lib/history";
-import { matchForSettings, settingsFromQuery, settingsToQuery } from "@/lib/race-settings";
-import { useSearchParams } from "next/navigation";
+import { freshRaceHref, matchForSettings, settingsFromQuery } from "@/lib/race-settings";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { PositionSample } from "@/lib/input/types";
 import { createBrowserSfxEnv, createSfx, type Sfx } from "@/lib/output/sfx";
 import { createPhraseBook, type PhraseBook } from "@/lib/output/phrases";
@@ -126,8 +126,18 @@ function voiceLine(voice: VoiceStatus): string {
   }
 }
 
+/**
+ * 주소(설정·n)가 바뀌면 레이스 화면을 통째로 새로 만든다.
+ * 앱이 /race 화면을 되살려 쓰는 바람에, 다시 대결해도 지난 레이스 상태가 남아 "소리 켜고 시작" 없이 바로 달리던 문제를 막는다.
+ */
 export default function RaceScreen() {
+  const searchParams = useSearchParams();
+  return <RaceScreenInner key={searchParams.toString()} />;
+}
+
+function RaceScreenInner() {
   const [phase, setPhase] = useState<"ready" | "running">("ready");
+  const router = useRouter();
   const searchParams = useSearchParams();
   const settings = useMemo(() => settingsFromQuery((key) => searchParams.get(key)), [searchParams]);
   const pool = useOpponentPool();
@@ -153,6 +163,7 @@ export default function RaceScreen() {
   const [autoPaused, setAutoPaused] = useState(false); // 멈춘 것이 감지돼 레이스가 일시정지됐는가
   const [interrupted, setInterrupted] = useState(false); // 화면이 가려져 경기를 멈춘 중인가
   const [interruptCount, setInterruptCount] = useState(0);
+  const [userPaused, setUserPaused] = useState(false); // 내가 직접 일시정지를 눌렀는가
   const [interruptedSec, setInterruptedSec] = useState(0); // 방해로 멈춘 시간(입력 시계 초)
   const [confirmingEnd, setConfirmingEnd] = useState(false);
   const [wake, setWake] = useState<WakeStatus>("waiting");
@@ -164,6 +175,7 @@ export default function RaceScreen() {
   const speakerRef = useRef<Speaker | null>(null);
   const policyRef = useRef<VoicePolicy | null>(null);
   const sfxRef = useRef<Sfx | null>(null);
+  const pauseControlRef = useRef<{ setPaused(paused: boolean): void } | null>(null);
   const engineRef = useRef<ReturnType<typeof createRaceEngine> | null>(null);
   const intensityRef = useRef<Intensity>(DEFAULT_INTENSITY);
   const bookRef = useRef<PhraseBook | null>(null);
@@ -240,17 +252,36 @@ export default function RaceScreen() {
     const track = createTrackRecorder();
     // 전화·앱 전환으로 화면이 가려지면 경기를 멈추고, 돌아오면 이어간다 (레이스 시간·상대 기록도 같이 멈춤)
     const interruption = createInterruptionTracker();
-    const onVisibility = () => {
-      if (document.visibilityState === "hidden") {
-        interruption.hide();
+    // 멈춤은 두 가지: 화면이 가려진 때, 내가 일시정지를 누른 때. 둘 중 하나라도 켜져 있으면 경기를 멈춘다
+    let userPausedNow = false;
+    let screenHides = 0;
+    let wasScreenHidden = false;
+    let isPaused = false;
+    const sync = () => {
+      const screenHidden = document.visibilityState === "hidden";
+      if (screenHidden && !wasScreenHidden) screenHides += 1;
+      wasScreenHidden = screenHidden;
+      const wantPaused = userPausedNow || screenHidden;
+      if (wantPaused && !isPaused) {
+        if (input.pause) input.pause();
+        else interruption.hide();
         speakerRef.current?.cancel();
         sfxRef.current?.stopAll();
-        setInterrupted(true);
-      } else {
-        interruption.show();
-        setInterrupted(false);
+      } else if (!wantPaused && isPaused) {
+        if (input.resume) input.resume();
+        else interruption.show();
       }
-      setInterruptCount(interruption.count);
+      isPaused = wantPaused;
+      setInterrupted(screenHidden);
+      setInterruptCount(screenHides);
+    };
+    const onVisibility = sync;
+    pauseControlRef.current = {
+      setPaused(paused) {
+        userPausedNow = paused;
+        setUserPaused(paused);
+        sync();
+      },
     };
     document.addEventListener("visibilitychange", onVisibility);
     const gapSeries: GapPoint[] = [];
@@ -347,6 +378,7 @@ export default function RaceScreen() {
 
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
+      pauseControlRef.current = null;
       input.stop();
       speakerRef.current?.cancel();
       sfxRef.current?.stopAll();
@@ -426,7 +458,10 @@ export default function RaceScreen() {
   };
 
   const sourceLabel = settings.source === "gps" ? "실제 GPS" : `데모 · ${DEMO_SPEED}배속`;
-  const demoUrl = `/race?${settingsToQuery({ ...settings, source: "demo" })}`;
+  const goDemo = (event: { preventDefault(): void }) => {
+    event.preventDefault();
+    router.push(freshRaceHref({ ...settings, source: "demo" }));
+  };
 
   const myDistance = tick?.snapshot.myDistanceM ?? 0;
   const gap = tick?.snapshot.gapM ?? 0;
@@ -483,7 +518,7 @@ export default function RaceScreen() {
         <section aria-label="준비" className="flex flex-col gap-3 glass p-4">
           <h2 className="text-sm font-semibold">중계 강도: {INTENSITY_LABEL[intensity]}</h2>
           <p className="text-xs text-foreground/60">
-            시작 화면에서 정한 강도입니다. 최소는 추월·결승만, 일반은 1km 통과·마지막 200m·접전까지, 적극은 추월 예측과 승률 변화까지 말합니다.
+            시작 화면에서 정한 강도입니다. 최소는 출발·추월·접전·결승만, 일반은 0.3km마다 중간 상황과 절반·마지막 200m까지, 적극은 0.25km마다 중간 상황과 추월 예측·승률 변화까지 말합니다.
           </p>
         </section>
 
@@ -494,7 +529,7 @@ export default function RaceScreen() {
             <p className="text-xs text-foreground/60">
               위치 좌표는 이 기기 안에서 거리를 재는 데만 쓰고, 저장하거나 서버로 보내지 않아요. 하늘이 트인 야외에서 정확해요.
             </p>
-            <Link className="text-xs underline" href={demoUrl}>
+            <Link className="text-xs underline" href="/race" onClick={goDemo}>
               실제로 뛰지 않고 데모로 체험하기
             </Link>
           </section>
@@ -571,7 +606,7 @@ export default function RaceScreen() {
               <p role="alert" className="text-red-400">
                 {gpsError.message}
               </p>
-              <Link className="underline" href={demoUrl}>
+              <Link className="underline" href="/race" onClick={goDemo}>
                 데모 모드로 체험하기
               </Link>
             </>
@@ -586,6 +621,11 @@ export default function RaceScreen() {
         </section>
       )}
 
+      {userPaused && !interrupted && (
+        <p role="status" className="glass p-4 text-center text-sm font-semibold">
+          일시정지 중이에요. 이어달리기를 누르면 계속됩니다 (멈춘 시간은 기록에서 빼요)
+        </p>
+      )}
       {interrupted && (
         <p role="status" className="glass p-4 text-center text-sm font-semibold">
           화면이 가려져서 경기를 멈췄어요. 돌아오면 이어집니다
@@ -725,40 +765,31 @@ export default function RaceScreen() {
       <div className="mt-auto flex flex-col gap-3">
         {confirmingEnd && !finished && running && (
           <p role="alert" className="glass p-4 text-sm">
-            끝까지 달리지 않고 종료하면 결과와 전적에 반영되지 않아요. 정말 종료할까요?
+            끝까지 달리지 않고 나가면 결과와 전적에 반영되지 않아요. 정말 나갈까요?
           </p>
         )}
         {finished || !running ? (
-          <Link
-            href="/result"
-            className="btn-primary"
-          >
+          <Link href="/result" className="btn-primary">
             결과 보기
           </Link>
         ) : confirmingEnd ? (
           <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={() => setConfirmingEnd(false)}
-              className="flex-1 btn-secondary"
-            >
+            <button type="button" onClick={() => setConfirmingEnd(false)} className="flex-1 btn-secondary">
               계속 달리기
             </button>
-            <Link
-              href="/result"
-              className="flex-1 btn-primary"
-            >
-              종료
+            <Link href="/" className="flex-1 btn-primary">
+              나가기
             </Link>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => setConfirmingEnd(true)}
-            className="btn-primary"
-          >
-            종료
-          </button>
+          <div className="flex gap-3">
+            <button type="button" onClick={() => pauseControlRef.current?.setPaused(!userPaused)} className="flex-1 btn-primary">
+              {userPaused ? "이어달리기" : "중지"}
+            </button>
+            <button type="button" onClick={() => setConfirmingEnd(true)} className="flex-1 btn-secondary">
+              나가기
+            </button>
+          </div>
         )}
       </div>
     </main>

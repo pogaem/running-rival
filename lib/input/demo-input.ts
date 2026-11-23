@@ -52,6 +52,10 @@ export function createDemoInput(track: PositionSample[], options: DemoInputOptio
 
   let state: "idle" | "running" | "done" = "idle";
   let timer: unknown = null;
+  let startedAt = 0;
+  let index = 0;
+  let pausedAt: number | null = null;
+  let emitNext: () => void = () => {};
 
   return {
     start(handlers: InputHandlers) {
@@ -59,18 +63,18 @@ export function createDemoInput(track: PositionSample[], options: DemoInputOptio
         throw new Error("데모 입력은 한 번만 시작할 수 있다");
       }
       state = "running";
-      const startedAt = clock.now();
-      let index = 0;
+      startedAt = clock.now();
+      index = 0;
 
-      const emitNext = () => {
+      emitNext = () => {
         timer = null;
-        if (state !== "running") return;
+        if (state !== "running" || pausedAt !== null) return;
 
         const sample = track[index];
         index += 1;
         handlers.onSample(sample);
         // 받는 쪽이 점을 받다가 stop()을 불렀을 수 있다
-        if (state !== "running") return;
+        if (state !== "running" || pausedAt !== null) return;
 
         if (index >= track.length) {
           state = "done";
@@ -82,6 +86,25 @@ export function createDemoInput(track: PositionSample[], options: DemoInputOptio
       };
 
       emitNext();
+    },
+
+    pause() {
+      if (state !== "running" || pausedAt !== null) return;
+      pausedAt = clock.now();
+      if (timer !== null) {
+        clock.clearTimeout(timer);
+        timer = null;
+      }
+    },
+
+    resume() {
+      if (state !== "running" || pausedAt === null) return;
+      // 멈춘 시간만큼 시작 시각을 뒤로 민다: 다음 점은 멈췄던 자리에서 이어진다
+      startedAt += clock.now() - pausedAt;
+      pausedAt = null;
+      if (index >= track.length) return;
+      const dueAt = startedAt + ((track[index].t - track[0].t) * 1000) / speed;
+      timer = clock.setTimeout(emitNext, Math.max(0, dueAt - clock.now()));
     },
 
     stop() {
