@@ -32,7 +32,7 @@ export const LAST_STRETCH_M = 200;
  * 시간이 아니라 거리 기준이라 데모 배속이나 페이스에 상관없이 코스 위 같은 자리에서 중계가 나온다 */
 export const STATUS_INTERVAL_M = 300;
 /** 적극 중계는 조금 더 자주(미터) */
-export const ACTIVE_STATUS_INTERVAL_M = 250;
+export const ACTIVE_STATUS_INTERVAL_M = 200;
 /** 결승선까지 이 거리(미터) 이하가 남으면 중간 상황은 더 말하지 않는다 (마지막 200m 멘트와 결승이 있다) */
 const STATUS_STOP_M = 40;
 /** 결승선에 닿았다고 보는 오차 범위(미터). 거리 계산의 아주 작은 오차를 감안한다 */

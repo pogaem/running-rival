@@ -30,6 +30,8 @@ export type RaceSummary = {
   reversals: { t: number; type: "overtake" | "overtaken" }[];
   /** 내 기록의 시간별 누적 거리(250m마다). 공유할 때만 쓴다. 위치 좌표는 없다 */
   myTrack?: DistancePoint[];
+  /** 이 결과를 만든 레이스를 구분하는 값(끝난 시각). 다음 레이스의 결과 화면이 지난 상태를 물려받지 않게 한다 */
+  raceId?: number;
   /** 내 기록을 공유했으면 그 이름표 (작업 24) */
   sharedId?: string;
   /** 전적·최고 기록에 반영한 뒤 채운다 (작업 18). 반영하지 못했으면 없다 */

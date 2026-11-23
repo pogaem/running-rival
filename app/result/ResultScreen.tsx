@@ -13,17 +13,12 @@ import { formatRaceClock } from "@/lib/output/subtitles";
 import { freshRaceHref } from "@/lib/race-settings";
 import { useRouter } from "next/navigation";
 import {
-  computeGraphGeometry,
-  describeElevation,
   formatMargin,
   parseSummary,
   serializeSummary,
   SUMMARY_STORAGE_KEY,
   type RaceSummary,
 } from "@/lib/result";
-
-const GRAPH_W = 320;
-const GRAPH_H = 140;
 
 /** 저장된 요약 글을 읽는다. 서버에서는 null이다 */
 function readStoredText(): string | null {
@@ -40,47 +35,6 @@ function useStoredSummaryText(): string | null | undefined {
     () => () => {},
     readStoredText,
     () => undefined,
-  );
-}
-
-function GapGraph({ summary }: { summary: RaceSummary }) {
-  const geometry = computeGraphGeometry(summary, GRAPH_W, GRAPH_H);
-  const points = geometry.line.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-  // 선과 0m 선 사이를 칠해 "내가 앞선 구간"(위)과 "상대가 앞선 구간"(아래)이 보이게 한다
-  const area =
-    geometry.line.length > 0
-      ? `M ${geometry.line[0].x.toFixed(1)},${geometry.zeroY} ` +
-        geometry.line.map((p) => `L ${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ") +
-        ` L ${geometry.line[geometry.line.length - 1].x.toFixed(1)},${geometry.zeroY} Z`
-      : "";
-  return (
-    <figure className="flex flex-col gap-2">
-      <svg
-        viewBox={`0 0 ${GRAPH_W} ${GRAPH_H}`}
-        role="img"
-        aria-label="시간대별 격차 그래프. 위쪽은 내가 앞선 구간, 아래쪽은 상대가 앞선 구간입니다."
-        className="w-full rounded-2xl bg-black/25"
-      >
-        <line x1="0" x2={GRAPH_W} y1={geometry.zeroY} y2={geometry.zeroY} stroke="currentColor" strokeOpacity="0.4" strokeDasharray="4 3" />
-        {area && <path d={area} fill="currentColor" fillOpacity="0.12" />}
-        {points && <polyline points={points} fill="none" stroke="currentColor" strokeWidth="2" />}
-        {geometry.markers.map((marker, index) => (
-          <g key={index}>
-            <line x1={marker.x} x2={marker.x} y1="0" y2={GRAPH_H} stroke="currentColor" strokeOpacity="0.5" />
-            <text x={marker.x + 3} y="12" fontSize="10" fill="currentColor">
-              {marker.type === "overtake" ? "추월" : "추월당함"}
-            </text>
-          </g>
-        ))}
-        <text x="4" y="12" fontSize="9" fill="currentColor" opacity="0.6">
-          내가 앞 (+{geometry.rangeM}m)
-        </text>
-        <text x="4" y={GRAPH_H - 4} fontSize="9" fill="currentColor" opacity="0.6">
-          상대가 앞 (-{geometry.rangeM}m)
-        </text>
-      </svg>
-      <figcaption className="text-xs text-foreground/60">가로는 레이스 시간(0:00 ~ {formatRaceClock(summary.myTimeSec)})입니다.</figcaption>
-    </figure>
   );
 }
 
@@ -130,25 +84,21 @@ function SharePanel({ summary }: { summary: RaceSummary }) {
   };
 
   return (
-    <section aria-label="내 기록 공유" className="flex flex-col gap-2 glass p-4 text-sm">
-      <h2 className="font-semibold">내 기록을 다른 러너의 상대로 공유하기</h2>
+    <section aria-label="내 기록 공유" className="glass flex flex-col gap-2 px-4 py-3 text-sm">
       {sharedId ? (
-        <>
-          <p>공유했어요. 다른 러너가 이 기록과 대결할 수 있어요. (이름표 {sharedId})</p>
-          <button type="button" onClick={unshare} disabled={busy} className="btn-secondary !px-4 !py-2 text-sm disabled:opacity-40">
-            공유 취소하고 지우기
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-white/70">공유했어요. 다른 러너가 이 기록과 대결할 수 있어요.</p>
+          <button type="button" onClick={unshare} disabled={busy} className="btn-secondary !px-3 !py-1.5 text-xs disabled:opacity-40">
+            공유 취소
           </button>
-        </>
+        </div>
       ) : (
-        <>
-          <p className="text-xs text-foreground/70">
-            공유되는 것은 <b>시간별 누적 거리와 총 상승 고도</b>뿐이에요. 이름, 위치(지도 경로), 날짜는 올라가지 않고, 다른 러너에게는 익명 이름표로
-            보여요. 공유한 뒤에도 이 기기에서 언제든 지울 수 있어요.
-          </p>
-          <button type="button" onClick={share} disabled={busy} className="btn-secondary !px-4 !py-2 text-sm disabled:opacity-40">
-            {busy ? "올리는 중…" : "동의하고 공유하기"}
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-white/60">시간·거리만 익명으로 올라가요 (이름·위치 없음)</p>
+          <button type="button" onClick={share} disabled={busy} className="btn-secondary !px-3 !py-1.5 text-xs disabled:opacity-40">
+            {busy ? "올리는 중…" : "내 기록 공유"}
           </button>
-        </>
+        </div>
       )}
       {message && (
         <p role="alert" className="text-xs text-red-400">
@@ -202,73 +152,46 @@ export default function ResultScreen() {
   ];
 
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 p-4">
-      <header className="pt-4">
-        <h1 className="text-3xl font-bold tracking-tight">결과</h1>
-        <p className="mt-1 text-sm text-foreground/70">
-          {distanceKm}km · {displayName(summary.opponent.id)} ({OPPONENT_SOURCE[summary.opponent.source]}) 와의 대결
-        </p>
-      </header>
-
-      <section aria-label="코스 타임라인" className="glass relative h-[380px] overflow-hidden !p-0">
-        <RouteMap label="레이스 코스와 추월 지점" progress={1} markers={timelineMarkers} />
-        <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/70 to-transparent p-5 pb-10">
+    <main className="mx-auto flex h-dvh w-full max-w-md flex-col gap-3 overflow-hidden p-3">
+      <section aria-label="코스 타임라인" className="glass relative min-h-0 flex-1 overflow-hidden !p-0">
+        <RouteMap variant="tall" label="레이스 코스와 추월 지점" progress={1} markers={timelineMarkers} />
+        <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/75 to-transparent p-4 pb-10">
+          <p className="text-[11px] font-semibold text-white/60">
+            {distanceKm}km · {displayName(summary.opponent.id)} ({OPPONENT_SOURCE[summary.opponent.source]})
+          </p>
           <p className={`text-6xl font-bold tracking-tight ${summary.won ? "text-emerald-400" : "text-red-400"}`}>
             {summary.won ? "승리" : "패배"}
+          </p>
+          <p className="mt-1 text-sm text-white/75">
+            {summary.won ? `${formatMargin(margin)} 먼저 들어왔어요` : `${formatMargin(margin)} 차이로 아쉽게 졌어요`}
+            {summary.reversals.length > 0 ? ` · 역전 ${summary.reversals.length}번` : ""}
           </p>
         </div>
       </section>
 
-      <section aria-label="승패와 기록" className="glass flex flex-col gap-4 p-5">
-        <p className="text-sm text-white/70">
-          {summary.won ? `${formatMargin(margin)} 먼저 들어왔어요` : `${formatMargin(margin)} 차이로 아쉽게 졌어요`}
-          {summary.reversals.length > 0 ? ` · 역전 ${summary.reversals.length}번` : " · 역전 없이 끝났어요"}
-        </p>
-        <div className="grid grid-cols-2 gap-3 tabular-nums">
-          <div className="rounded-2xl bg-black/25 p-3">
-            <p className="text-xs text-white/55">내 기록</p>
-            <p className="mt-1 text-2xl font-bold">
-              <b>{formatRaceClock(summary.myTimeSec)}</b>
-            </p>
-          </div>
-          <div className="rounded-2xl bg-black/25 p-3">
-            <p className="text-xs text-white/55">상대 기록</p>
-            <p className="mt-1 text-2xl font-bold">
-              <b>{formatRaceClock(summary.opponentTimeSec)}</b>
-            </p>
-          </div>
+      <section aria-label="기록" className="grid shrink-0 grid-cols-2 gap-3 tabular-nums">
+        <div className="glass px-4 py-3">
+          <p className="text-xs text-white/55">내 기록</p>
+          <p className="text-2xl font-bold">{formatRaceClock(summary.myTimeSec)}</p>
+        </div>
+        <div className="glass px-4 py-3">
+          <p className="text-xs text-white/55">상대 기록</p>
+          <p className="text-2xl font-bold">{formatRaceClock(summary.opponentTimeSec)}</p>
         </div>
       </section>
 
       {summary.history && (
-        <section aria-label="전적과 최고 기록" className="flex flex-col gap-1 glass p-4 text-sm">
-          <p>
-            {displayName(summary.opponent.id)} 상대 전적 <b>{summary.history.rival.wins}승 {summary.history.rival.losses}패</b>
-          </p>
-          {summary.history.newBest && (
-            <p className="font-semibold">{describeNewBest(summary.myTimeSec, summary.history.previousBestSec)}</p>
-          )}
-          <p className="text-xs text-foreground/60">전적과 최고 기록은 이 기기에만 저장돼요.</p>
-        </section>
+        <p className="shrink-0 px-1 text-center text-sm text-white/80">
+          {displayName(summary.opponent.id)} 상대 전적 <b>{summary.history.rival.wins}승 {summary.history.rival.losses}패</b>
+          {summary.history.newBest ? ` · ${describeNewBest(summary.myTimeSec, summary.history.previousBestSec)}` : ""}
+        </p>
       )}
 
-      <SharePanel summary={summary} />
+      <div className="shrink-0">
+        <SharePanel key={summary.raceId ?? 0} summary={summary} />
+      </div>
 
-      <section aria-label="시간대별 격차 그래프" className="glass flex flex-col gap-3 p-5">
-        <h2 className="text-sm font-semibold text-white/70">누가 언제 앞섰는지</h2>
-        <GapGraph summary={summary} />
-      </section>
-
-      <section aria-label="기록 조건" className="flex flex-col gap-1 glass p-4 text-sm">
-        <h2 className="font-semibold">기록 조건</h2>
-        <p>
-          상대 {describeElevation(summary.opponent.elevationGainM, settings.distanceM)} / 나{" "}
-          {describeElevation(summary.myElevationGainM, settings.distanceM)}
-        </p>
-        <p className="text-xs text-foreground/60">공식 기록 비교가 아니라 재미를 위한 비공식 대결이에요. 코스와 오르막 차이는 보정하지 않았어요.</p>
-      </section>
-
-      <div className="mt-auto flex gap-3">
+      <div className="flex shrink-0 gap-3 pb-1">
         <Link
           href="/race"
           onClick={(event) => {

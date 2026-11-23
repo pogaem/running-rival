@@ -75,6 +75,14 @@ function formatPace(secPerKm: number): string {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 }
 
+/** 250m마다 찍은 점 끝에 결승선 지점(완주 거리, 결승 시각)을 붙인다. 공유할 때 "마지막 점이 완주 거리와 같아야" 해서 필요하다 */
+function withFinishPoint(points: { t: number; d: number }[], finishT: number, distanceM: number): { t: number; d: number }[] {
+  const last = points[points.length - 1];
+  if (last && last.d >= distanceM) return points;
+  const t = last && finishT > last.t ? finishT : (last?.t ?? 0) + 0.1;
+  return [...points, { t: Math.round(t * 10) / 10, d: distanceM }];
+}
+
 /** 이 기기가 화면 꺼짐 방지(Screen Wake Lock)를 지원하는지. 서버에서는 알 수 없어 false로 두었다가 브라우저에서 바로잡는다 */
 function useWakeLockSupported(): boolean {
   return useSyncExternalStore(
@@ -354,9 +362,10 @@ function RaceScreenInner() {
             gapSeries,
             events: allEvents,
             myElevationGainM: elevation.gainM,
-            myTrack: track.points,
+            myTrack: withFinishPoint(track.points, raceTimeSec, settings.distanceM),
           });
           if (summary) {
+            summary.raceId = Date.now();
             // 전적과 개인 최고 기록에 반영한다 (이 기기에만 저장)
             const outcome = recordRace(parseHistory(loadHistoryText()), {
               opponentId: summary.opponent.id,
@@ -494,8 +503,8 @@ function RaceScreenInner() {
       side: "right",
     })),
     { fraction: 1, label: "도착", tone: "flag", side: "left" },
-    { fraction: trackPercent(rivalDistance) / 100, label: `상대 ${(rivalDistance / 1000).toFixed(2)}km`, tone: "rival", side: meAhead ? "right" : "left", dy: -26 },
-    { fraction: trackPercent(myDistance) / 100, label: `나 ${(myDistance / 1000).toFixed(2)}km`, tone: "me", side: meAhead ? "left" : "right" },
+    { fraction: trackPercent(rivalDistance) / 100, label: `상대 ${(rivalDistance / 1000).toFixed(2)}km`, tone: "rival", side: meAhead ? "right" : "left", dy: meAhead ? -15 : 15 },
+    { fraction: trackPercent(myDistance) / 100, label: `나 ${(myDistance / 1000).toFixed(2)}km`, tone: "me", side: meAhead ? "left" : "right", dy: meAhead ? 15 : -15 },
   ];
   const gapPosition = 50 + (Math.max(-GAP_BAR_RANGE_M, Math.min(GAP_BAR_RANGE_M, gap)) / GAP_BAR_RANGE_M) * 50;
   const percent = tick?.estimate ? displayPercent(tick.estimate.probability) : null;

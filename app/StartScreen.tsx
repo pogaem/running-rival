@@ -101,7 +101,7 @@ export default function StartScreen() {
               onChange={(event) => setDistanceText(event.target.value)}
               className="field !px-2 !py-1.5 !text-xl w-20"
             />
-            <span className="whitespace-nowrap text-xs text-white/60">km (0.5 단위)</span>
+            <span className="whitespace-nowrap text-xs text-white/60">km (0.1 단위)</span>
           </div>
         </div>
         {!distance.ok && (
