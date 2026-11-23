@@ -128,12 +128,12 @@ function SharePanel({ summary }: { summary: RaceSummary }) {
   };
 
   return (
-    <section aria-label="내 기록 공유" className="flex flex-col gap-2 rounded-lg border border-foreground/30 p-3 text-sm">
+    <section aria-label="내 기록 공유" className="flex flex-col gap-2 glass p-4 text-sm">
       <h2 className="font-semibold">내 기록을 다른 러너의 상대로 공유하기</h2>
       {sharedId ? (
         <>
           <p>공유했어요. 다른 러너가 이 기록과 대결할 수 있어요. (이름표 {sharedId})</p>
-          <button type="button" onClick={unshare} disabled={busy} className="rounded-lg border border-foreground/30 px-3 py-2 disabled:opacity-40">
+          <button type="button" onClick={unshare} disabled={busy} className="btn-secondary !px-4 !py-2 text-sm disabled:opacity-40">
             공유 취소하고 지우기
           </button>
         </>
@@ -143,13 +143,13 @@ function SharePanel({ summary }: { summary: RaceSummary }) {
             공유되는 것은 <b>시간별 누적 거리와 총 상승 고도</b>뿐이에요. 이름, 위치(지도 경로), 날짜는 올라가지 않고, 다른 러너에게는 익명 이름표로
             보여요. 공유한 뒤에도 이 기기에서 언제든 지울 수 있어요.
           </p>
-          <button type="button" onClick={share} disabled={busy} className="rounded-lg border border-foreground px-3 py-2 font-semibold disabled:opacity-40">
+          <button type="button" onClick={share} disabled={busy} className="btn-secondary !px-4 !py-2 text-sm disabled:opacity-40">
             {busy ? "올리는 중…" : "동의하고 공유하기"}
           </button>
         </>
       )}
       {message && (
-        <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+        <p role="alert" className="text-xs text-red-400">
           {message}
         </p>
       )}
@@ -169,12 +169,12 @@ export default function ResultScreen() {
     return (
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 p-4">
         <header className="pt-4">
-          <h1 className="text-2xl font-bold">결과</h1>
+          <h1 className="text-3xl font-bold tracking-tight">결과</h1>
         </header>
-        <p className="rounded-lg border border-foreground/30 p-3 text-sm">
+        <p className="glass p-4 text-sm">
           보여 줄 결과가 없어요. 대결 거리를 끝까지 달려야 결과가 나옵니다. 중간에 끝낸 경기는 결과와 전적에 반영하지 않아요.
         </p>
-        <Link href="/" className="mt-auto rounded-lg bg-foreground px-4 py-3 text-center font-semibold text-background">
+        <Link href="/" className="mt-auto btn-primary">
           처음으로
         </Link>
       </main>
@@ -190,14 +190,14 @@ export default function ResultScreen() {
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 p-4">
       <header className="pt-4">
-        <h1 className="text-2xl font-bold">결과</h1>
+        <h1 className="text-3xl font-bold tracking-tight">결과</h1>
         <p className="mt-1 text-sm text-foreground/70">
           {distanceKm}km · {displayName(summary.opponent.id)} ({OPPONENT_SOURCE[summary.opponent.source]}) 와의 대결
         </p>
       </header>
 
-      <section aria-label="승패와 기록" className="flex flex-col gap-1 rounded-lg border border-foreground/30 p-3">
-        <p className={`text-3xl font-bold ${summary.won ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+      <section aria-label="승패와 기록" className="flex flex-col gap-1 glass p-4">
+        <p className={`text-4xl font-bold tracking-tight ${summary.won ? "text-emerald-400" : "text-red-400"}`}>
           {summary.won ? "승리" : "패배"}
         </p>
         <p className="tabular-nums">
@@ -210,7 +210,7 @@ export default function ResultScreen() {
       </section>
 
       {summary.history && (
-        <section aria-label="전적과 최고 기록" className="flex flex-col gap-1 rounded-lg border border-foreground/30 p-3 text-sm">
+        <section aria-label="전적과 최고 기록" className="flex flex-col gap-1 glass p-4 text-sm">
           <p>
             {displayName(summary.opponent.id)} 상대 전적 <b>{summary.history.rival.wins}승 {summary.history.rival.losses}패</b>
           </p>
@@ -228,7 +228,7 @@ export default function ResultScreen() {
         <GapGraph summary={summary} />
       </section>
 
-      <section aria-label="기록 조건" className="flex flex-col gap-1 rounded-lg border border-foreground/30 p-3 text-sm">
+      <section aria-label="기록 조건" className="flex flex-col gap-1 glass p-4 text-sm">
         <h2 className="font-semibold">기록 조건</h2>
         <p>
           상대 {describeElevation(summary.opponent.elevationGainM, settings.distanceM)} / 나{" "}
@@ -238,10 +238,10 @@ export default function ResultScreen() {
       </section>
 
       <div className="mt-auto flex gap-3">
-        <Link href={rematchHref} className="flex-1 rounded-lg border border-foreground px-4 py-3 text-center font-semibold">
+        <Link href={rematchHref} className="flex-1 btn-secondary">
           리매치
         </Link>
-        <Link href="/" className="flex-1 rounded-lg bg-foreground px-4 py-3 text-center font-semibold text-background">
+        <Link href="/" className="flex-1 btn-primary">
           처음으로
         </Link>
       </div>

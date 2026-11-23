@@ -1,8 +1,10 @@
 @import "tailwindcss";
 
+/* 러닝 라이벌 화면 스타일: 어두운 배경 + 흐릿한 빛 번짐 + 유리 느낌 카드 + 크고 둥근 흰 버튼 */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0a0c12;
+  --foreground: #f4f5f8;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -12,15 +14,85 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), "Apple SD Gothic Neo", "Noto Sans KR", Arial, Helvetica, sans-serif;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* 화면 뒤에 깔리는 흐릿한 빛 (스크롤해도 고정) */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -20%;
+  z-index: -1;
+  background:
+    radial-gradient(40% 35% at 15% 12%, rgba(88, 101, 242, 0.55), transparent 70%),
+    radial-gradient(35% 30% at 90% 28%, rgba(236, 107, 74, 0.38), transparent 70%),
+    radial-gradient(45% 40% at 40% 95%, rgba(34, 170, 140, 0.35), transparent 70%);
+  filter: blur(40px);
+  pointer-events: none;
+}
+
+/* 유리 느낌 카드 */
+.glass {
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+}
+
+/* 가장 중요한 버튼: 크고 둥근 흰색 */
+.btn-primary {
+  display: block;
+  border-radius: 9999px;
+  background: #fff;
+  color: #0a0c12;
+  padding: 1.1rem 1.5rem;
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 700;
+  box-shadow: 0 10px 30px rgba(255, 255, 255, 0.18);
+}
+.btn-primary:disabled,
+.btn-primary[aria-disabled="true"] {
+  opacity: 0.35;
+  box-shadow: none;
+}
+
+/* 보조 버튼: 유리 느낌 알약 */
+.btn-secondary {
+  display: block;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  padding: 0.9rem 1.25rem;
+  text-align: center;
+  font-weight: 600;
+}
+.btn-secondary:disabled {
+  opacity: 0.4;
+}
+
+/* 숫자 입력 칸 */
+.field {
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.28);
+  padding: 0.7rem 0.9rem;
+  text-align: center;
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  outline: none;
+}
+.field:focus {
+  border-color: rgba(255, 255, 255, 0.6);
 }

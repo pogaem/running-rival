@@ -63,8 +63,8 @@ const INTENSITY_OPTIONS: Intensity[] = ["off", "minimal", "normal", "active"];
 
 /** 자막 색 */
 const TONE_CLASS: Record<SubtitleTone, string> = {
-  good: "text-emerald-600 dark:text-emerald-400",
-  bad: "text-rose-600 dark:text-rose-400",
+  good: "text-emerald-400",
+  bad: "text-rose-400",
   neutral: "text-foreground",
 };
 
@@ -439,8 +439,8 @@ export default function RaceScreen() {
           role="radio"
           aria-checked={intensity === option}
           onClick={() => setIntensity(option)}
-          className={`rounded-md border px-2 py-2 text-xs ${
-            intensity === option ? "border-foreground bg-foreground text-background" : "border-foreground/30"
+          className={`rounded-full border px-2 py-2 text-xs font-semibold ${
+            intensity === option ? "border-white bg-white text-[#0a0c12]" : "border-white/20 bg-white/5"
           }`}
         >
           {INTENSITY_LABEL[option]}
@@ -453,13 +453,13 @@ export default function RaceScreen() {
     return (
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 p-4">
         <header className="pt-4">
-          <h1 className="text-2xl font-bold">레이스</h1>
+          <h1 className="text-3xl font-bold tracking-tight">레이스</h1>
           <p className="mt-1 text-sm text-foreground/70">
             {sourceLabel} · {opponent ? displayName(opponent.id) : "상대 없음"}({opponent?.source === "virtual" ? "가상 러너" : opponent?.source === "shared" ? "다른 러너 기록" : "기록"}) · {raceDistanceM / 1000}km · 내 페이스 {formatPace(settings.paceSecPerKm)}/km
           </p>
         </header>
 
-        <section aria-label="준비" className="flex flex-col gap-3 rounded-lg border border-foreground/30 p-3">
+        <section aria-label="준비" className="flex flex-col gap-3 glass p-4">
           <h2 className="text-sm font-semibold">중계 강도: {INTENSITY_LABEL[intensity]}</h2>
           <p className="text-xs text-foreground/60">
             시작 화면에서 정한 강도입니다. 최소는 추월·결승만, 일반은 1km 통과·마지막 200m·접전까지, 적극은 추월 예측과 승률 변화까지 말합니다.
@@ -467,7 +467,7 @@ export default function RaceScreen() {
         </section>
 
         {settings.source === "gps" && (
-          <section aria-label="위치 안내" className="flex flex-col gap-1 rounded-lg border border-foreground/30 p-3 text-sm">
+          <section aria-label="위치 안내" className="flex flex-col gap-1 glass p-4 text-sm">
             <h2 className="font-semibold">위치 권한이 필요해요</h2>
             <p>시작을 누르면 브라우저가 위치 사용을 물어봐요. <b>허용</b>해야 내가 달린 거리를 잴 수 있어요.</p>
             <p className="text-xs text-foreground/60">
@@ -479,7 +479,7 @@ export default function RaceScreen() {
           </section>
         )}
 
-        <section aria-label="소리 안내" className="flex flex-col gap-1 rounded-lg border border-foreground/30 p-3 text-sm">
+        <section aria-label="소리 안내" className="flex flex-col gap-1 glass p-4 text-sm">
           <p>이어폰을 끼고, 음악을 듣는다면 틀어 두세요. 이어폰의 외부 소리 듣기 모드를 켜고 뛰는 것을 권장합니다.</p>
           <p className="text-xs text-foreground/60">
             음성 중계: {voiceSupport.speech ? "이 기기에서 지원됩니다" : "이 기기에서는 지원되지 않습니다 (자막만 나옵니다)"}
@@ -495,7 +495,7 @@ export default function RaceScreen() {
           </p>
         </section>
 
-        <section aria-label="음원 출처" className="flex flex-col gap-1 rounded-lg border border-foreground/30 p-3 text-xs text-foreground/60">
+        <section aria-label="음원 출처" className="flex flex-col gap-1 glass p-4 text-xs text-foreground/60">
           <h2 className="text-sm font-semibold text-foreground">음원 출처</h2>
           <p>
             관중 함성: Gregor Quendel, &quot;Free Crowd Cheering Sounds&quot; (CC BY 4.0) ·{" "}
@@ -512,14 +512,14 @@ export default function RaceScreen() {
         </section>
 
         <div className="mt-auto flex gap-3">
-          <Link href="/" className="flex-1 rounded-lg border border-foreground/30 px-4 py-3 text-center">
+          <Link href="/" className="btn-secondary">
             돌아가기
           </Link>
           <button
             type="button"
             onClick={startRace}
             disabled={!pool.ready || !opponent}
-            className="flex-1 rounded-lg bg-foreground px-4 py-3 text-center font-semibold text-background disabled:opacity-40"
+            className="flex-1 btn-primary disabled:opacity-40"
           >
             {pool.ready ? "소리 켜고 시작" : "상대 불러오는 중…"}
           </button>
@@ -531,17 +531,17 @@ export default function RaceScreen() {
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 p-4">
       <header className="pt-4">
-        <h1 className="text-2xl font-bold">레이스</h1>
+        <h1 className="text-3xl font-bold tracking-tight">레이스</h1>
         <p className="mt-1 text-sm text-foreground/70">
           {sourceLabel} · {opponent ? displayName(opponent.id) : "상대 없음"}({opponent?.source === "virtual" ? "가상 러너" : opponent?.source === "shared" ? "다른 러너 기록" : "기록"}) · {raceDistanceM / 1000}km · 내 페이스 {formatPace(settings.paceSecPerKm)}/km
         </p>
       </header>
 
       {settings.source === "gps" && (
-        <section aria-label="위치 상태" className="flex flex-col gap-1 rounded-lg border border-foreground/30 p-3 text-sm">
+        <section aria-label="위치 상태" className="flex flex-col gap-1 glass p-4 text-sm">
           {gpsError ? (
             <>
-              <p role="alert" className="text-red-600 dark:text-red-400">
+              <p role="alert" className="text-red-400">
                 {gpsError.message}
               </p>
               <Link className="underline" href={demoUrl}>
@@ -560,31 +560,31 @@ export default function RaceScreen() {
       )}
 
       {interrupted && (
-        <p role="status" className="rounded-lg border border-foreground/30 p-3 text-center text-sm font-semibold">
+        <p role="status" className="glass p-4 text-center text-sm font-semibold">
           화면이 가려져서 경기를 멈췄어요. 돌아오면 이어집니다
         </p>
       )}
       {!interrupted && interruptCount > 0 && (
-        <p role="status" className="rounded-lg border border-foreground/30 p-3 text-center text-xs text-foreground/70">
+        <p role="status" className="glass p-4 text-center text-xs text-foreground/70">
           화면이 가려진 {interruptCount}번 동안 경기를 멈췄다가 이어갔어요 (멈춘 시간 {Math.round(interruptedSec)}초는 기록에서 뺐어요)
         </p>
       )}
 
       {autoPaused && (
-        <p role="status" className="rounded-lg border border-foreground/30 p-3 text-center text-sm font-semibold">
+        <p role="status" className="glass p-4 text-center text-sm font-semibold">
           일시정지 중 · 멈춘 것이 감지됐어요. 다시 달리면 이어집니다 (상대 기록과 중계도 멈춰 있어요)
         </p>
       )}
 
       <section aria-label="진행 상황" className="flex items-end justify-between">
-        <p className="text-3xl font-bold tabular-nums">
+        <p className="text-4xl font-bold tracking-tight tabular-nums">
           {(myDistance / 1000).toFixed(2)}
           <span className="text-base font-normal text-foreground/70"> km / {raceDistanceM / 1000} km</span>
         </p>
-        <p className="text-3xl font-bold tabular-nums">{formatRaceClock(tick?.t ?? 0)}</p>
+        <p className="text-4xl font-bold tracking-tight tabular-nums">{formatRaceClock(tick?.t ?? 0)}</p>
       </section>
 
-      <section aria-label="나와 상대의 격차" className="rounded-lg border border-foreground/30 p-3">
+      <section aria-label="나와 상대의 격차" className="glass p-4">
         <div className="flex justify-between text-xs text-foreground/60">
           <span>◀ 상대가 앞</span>
           <span>내가 앞 ▶</span>
@@ -601,7 +601,7 @@ export default function RaceScreen() {
         </p>
       </section>
 
-      <section aria-label="예상 승률" className="rounded-lg border border-foreground/30 p-3">
+      <section aria-label="예상 승률" className="glass p-4">
         <div className="flex items-baseline justify-between">
           <h2 className="text-sm font-semibold">예상 승률</h2>
           <p className="text-sm font-semibold tabular-nums">
@@ -622,12 +622,12 @@ export default function RaceScreen() {
         )}
       </section>
 
-      <section aria-label="중계 강도" className="rounded-lg border border-foreground/30 p-3">
+      <section aria-label="중계 강도" className="glass p-4">
         <h2 className="mb-2 text-sm font-semibold">중계 강도</h2>
         {intensitySelector}
       </section>
 
-      <section aria-label="중계 자막" className="flex min-h-0 flex-1 flex-col rounded-lg border border-foreground/30 p-3">
+      <section aria-label="중계 자막" className="flex min-h-0 flex-1 flex-col glass p-4">
         <h2 className="text-sm font-semibold">중계 자막</h2>
         <ol aria-live="polite" className="mt-2 flex max-h-56 flex-col gap-2 overflow-y-auto">
           {log.length === 0 && <li className="text-sm text-foreground/60">경기가 시작되면 여기에 쌓입니다</li>}
@@ -646,7 +646,7 @@ export default function RaceScreen() {
       </section>
 
       {process.env.NODE_ENV === "development" && (
-        <section aria-label="이벤트 테스트 (개발 중에만 보임)" className="rounded-lg border border-dashed border-foreground/30 p-3">
+        <section aria-label="이벤트 테스트 (개발 중에만 보임)" className="glass border-dashed p-4">
           <h2 className="text-xs font-semibold text-foreground/60">이벤트 테스트 (개발 중에만 보임)</h2>
           <div className="mt-2 flex gap-2">
             {(
@@ -660,7 +660,7 @@ export default function RaceScreen() {
                 key={type}
                 type="button"
                 onClick={() => pushTestEvent(type)}
-                className="flex-1 rounded-md border border-foreground/30 px-2 py-2 text-xs"
+                className="flex-1 btn-secondary !px-2 !py-2 text-xs"
               >
                 {label}
               </button>
@@ -684,14 +684,14 @@ export default function RaceScreen() {
 
       <div className="mt-auto flex flex-col gap-3">
         {confirmingEnd && !finished && running && (
-          <p role="alert" className="rounded-lg border border-foreground/30 p-3 text-sm">
+          <p role="alert" className="glass p-4 text-sm">
             끝까지 달리지 않고 종료하면 결과와 전적에 반영되지 않아요. 정말 종료할까요?
           </p>
         )}
         {finished || !running ? (
           <Link
             href="/result"
-            className="rounded-lg bg-foreground px-4 py-3 text-center font-semibold text-background"
+            className="btn-primary"
           >
             결과 보기
           </Link>
@@ -700,13 +700,13 @@ export default function RaceScreen() {
             <button
               type="button"
               onClick={() => setConfirmingEnd(false)}
-              className="flex-1 rounded-lg border border-foreground px-4 py-3 font-semibold"
+              className="flex-1 btn-secondary"
             >
               계속 달리기
             </button>
             <Link
               href="/result"
-              className="flex-1 rounded-lg bg-foreground px-4 py-3 text-center font-semibold text-background"
+              className="flex-1 btn-primary"
             >
               종료
             </Link>
@@ -715,7 +715,7 @@ export default function RaceScreen() {
           <button
             type="button"
             onClick={() => setConfirmingEnd(true)}
-            className="rounded-lg bg-foreground px-4 py-3 text-center font-semibold text-background"
+            className="btn-primary"
           >
             종료
           </button>
