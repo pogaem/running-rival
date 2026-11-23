@@ -56,9 +56,6 @@ import {
 /** 격차 막대가 한쪽으로 보여 주는 최대 격차(미터). 이보다 벌어지면 막대 끝에 붙는다 */
 const GAP_BAR_RANGE_M = 50;
 
-/** 판정부터 음성 시작까지 허용되는 시간(밀리초). PRD 성공 기준: 3초 이내 */
-const VOICE_DELAY_LIMIT_MS = 3000;
-
 /** 화면에 보여 줄 중계 강도 선택지 */
 const INTENSITY_OPTIONS: Intensity[] = ["minimal", "normal", "active"];
 
@@ -105,15 +102,9 @@ function useVoiceSupport(): { speech: boolean; audioSession: boolean } {
 
 type WakeStatus = "waiting" | "on" | "off" | "denied";
 
-/** 로그 한 줄의 음성 상태를 한 줄 글로 */
-function voiceLine(voice: VoiceStatus): string {
+/** 음성이 안 나온 자막에만 붙이는 짧은 설명. 정상으로 읽는 중이거나 읽은 것은 설명이 필요 없다 */
+function voiceNote(voice: VoiceStatus): string | null {
   switch (voice.state) {
-    case "pending":
-      return "음성 읽는 중…";
-    case "started":
-      return `음성 시작까지 ${Math.round(voice.delayMs)}ms${voice.delayMs > VOICE_DELAY_LIMIT_MS ? " ⚠ 3초 초과" : ""}${
-        voice.ducked ? " · 다른 소리 낮춤" : voice.beeped ? " · 알림음" : ""
-      }`;
     case "failed":
       return `음성 실패: ${voice.message}`;
     case "skipped":
@@ -123,6 +114,8 @@ function voiceLine(voice: VoiceStatus): string {
         gap: "자막만 (직전 멘트와 간격이 짧음)",
         unsupported: "자막만 (이 기기는 음성을 지원하지 않음)",
       }[voice.reason];
+    default:
+      return null;
   }
 }
 
@@ -166,7 +159,7 @@ function RaceScreenInner() {
   const [userPaused, setUserPaused] = useState(false); // 내가 직접 일시정지를 눌렀는가
   const [interruptedSec, setInterruptedSec] = useState(0); // 방해로 멈춘 시간(입력 시계 초)
   const [confirmingEnd, setConfirmingEnd] = useState(false);
-  const [wake, setWake] = useState<WakeStatus>("waiting");
+  const [, setWake] = useState<WakeStatus>("waiting");
   const wakeSupported = useWakeLockSupported();
   const voiceSupport = useVoiceSupport();
 
@@ -643,6 +636,37 @@ function RaceScreenInner() {
         </p>
       )}
 
+      <div className="sticky top-2 z-20 flex flex-col gap-3">
+        {confirmingEnd && !finished && running && (
+          <p role="alert" className="glass p-4 text-sm">
+            끝까지 달리지 않고 나가면 결과와 전적에 반영되지 않아요. 정말 나갈까요?
+          </p>
+        )}
+        {finished || !running ? (
+          <Link href="/result" className="btn-primary">
+            결과 보기
+          </Link>
+        ) : confirmingEnd ? (
+          <div className="flex gap-3">
+            <button type="button" onClick={() => setConfirmingEnd(false)} className="flex-1 btn-secondary">
+              계속 달리기
+            </button>
+            <Link href="/" className="flex-1 btn-primary">
+              나가기
+            </Link>
+          </div>
+        ) : (
+          <div className="flex gap-3">
+            <button type="button" onClick={() => pauseControlRef.current?.setPaused(!userPaused)} className="flex-1 btn-primary">
+              {userPaused ? "이어달리기" : "중지"}
+            </button>
+            <button type="button" onClick={() => setConfirmingEnd(true)} className="flex-1 btn-secondary">
+              나가기
+            </button>
+          </div>
+        )}
+      </div>
+
       <section aria-label="진행 상황" className="glass relative h-[420px] overflow-hidden !p-0">
         <RouteMap
           label="코스 위 나와 상대의 위치"
@@ -717,9 +741,7 @@ function RaceScreenInner() {
                 <span className="tabular-nums text-foreground/60">{formatRaceClock(entry.raceTimeSec)}</span>{" "}
                 {displayText(entry)}
               </p>
-              <p className="text-xs tabular-nums text-foreground/50">
-                판정 {formatRaceClock(entry.raceTimeSec)} · 자막 {entry.delayMs.toFixed(1)}ms · {voiceLine(entry.voice)}
-              </p>
+              {voiceNote(entry.voice) && <p className="text-xs text-foreground/50">{voiceNote(entry.voice)}</p>}
             </li>
           ))}
         </ol>
@@ -749,49 +771,7 @@ function RaceScreenInner() {
         </section>
       )}
 
-      <p className="text-xs text-foreground/60" data-testid="wake-status">
-        화면 꺼짐 방지:{" "}
-        {!wakeSupported
-          ? "이 기기에서는 지원되지 않습니다 (화면이 꺼질 수 있어요)"
-          : wake === "on"
-            ? "켜짐"
-            : wake === "denied"
-              ? "허용되지 않았습니다"
-              : wake === "off"
-                ? "꺼짐 (화면이 돌아오면 다시 켭니다)"
-                : "켜는 중"}
-      </p>
 
-      <div className="mt-auto flex flex-col gap-3">
-        {confirmingEnd && !finished && running && (
-          <p role="alert" className="glass p-4 text-sm">
-            끝까지 달리지 않고 나가면 결과와 전적에 반영되지 않아요. 정말 나갈까요?
-          </p>
-        )}
-        {finished || !running ? (
-          <Link href="/result" className="btn-primary">
-            결과 보기
-          </Link>
-        ) : confirmingEnd ? (
-          <div className="flex gap-3">
-            <button type="button" onClick={() => setConfirmingEnd(false)} className="flex-1 btn-secondary">
-              계속 달리기
-            </button>
-            <Link href="/" className="flex-1 btn-primary">
-              나가기
-            </Link>
-          </div>
-        ) : (
-          <div className="flex gap-3">
-            <button type="button" onClick={() => pauseControlRef.current?.setPaused(!userPaused)} className="flex-1 btn-primary">
-              {userPaused ? "이어달리기" : "중지"}
-            </button>
-            <button type="button" onClick={() => setConfirmingEnd(true)} className="flex-1 btn-secondary">
-              나가기
-            </button>
-          </div>
-        )}
-      </div>
     </main>
   );
 }
