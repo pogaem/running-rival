@@ -155,6 +155,8 @@ function RaceScreenInner() {
   const [autoPaused, setAutoPaused] = useState(false); // 멈춘 것이 감지돼 레이스가 일시정지됐는가
   const [interrupted, setInterrupted] = useState(false); // 화면이 가려져 경기를 멈춘 중인가
   const [, setInterruptCount] = useState(0);
+  // 실제 GPS: 뛰기 시작한 것을 감지할 때까지 기다리는 중인가 (데모는 바로 시작)
+  const [waitingStart, setWaitingStart] = useState(settings.source === "gps");
   const [userPaused, setUserPaused] = useState(false); // 내가 직접 일시정지를 눌렀는가
   const [, setInterruptedSec] = useState(0); // 방해로 멈춘 시간(입력 시계 초)
   const [confirmingEnd, setConfirmingEnd] = useState(false);
@@ -167,7 +169,7 @@ function RaceScreenInner() {
   const speakerRef = useRef<Speaker | null>(null);
   const policyRef = useRef<VoicePolicy | null>(null);
   const sfxRef = useRef<Sfx | null>(null);
-  const pauseControlRef = useRef<{ setPaused(paused: boolean): void } | null>(null);
+  const pauseControlRef = useRef<{ setPaused(paused: boolean): void; startNow(): void } | null>(null);
   const engineRef = useRef<ReturnType<typeof createRaceEngine> | null>(null);
   const intensityRef = useRef<Intensity>(DEFAULT_INTENSITY);
   const bookRef = useRef<PhraseBook | null>(null);
@@ -268,7 +270,17 @@ function RaceScreenInner() {
       setInterruptCount(screenHides);
     };
     const onVisibility = sync;
+    // 달리기 자동 시작(폰의 GPS만 사용): 걷는 속도보다 빠른 움직임(초속 2m≈시속 7km 이상)이 3번 이어지면 그때부터 레이스를 시작한다
+    const autoStart = settings.source === "gps";
+    let raceStarted = !autoStart;
+    let startOffsetSec = 0;
+    let startNowRequested = false;
+    let lastRaw: PositionSample | null = null;
+    let fastCount = 0;
     pauseControlRef.current = {
+      startNow() {
+        startNowRequested = true;
+      },
       setPaused(paused) {
         userPausedNow = paused;
         setUserPaused(paused);
@@ -291,7 +303,19 @@ function RaceScreenInner() {
         if (gate.skip) return; // 화면이 가려진 동안의 위치는 쓰지 않는다
         setInterruptedSec(gate.interruptedSec);
         // 멈춘 시간을 뺀 시계로 바꿔서 쓴다. 이하 필터·자동 일시정지·엔진은 이 시계를 본다
-        const rawSample: PositionSample = { ...incoming, t: incoming.t - gate.interruptedSec };
+        if (!raceStarted) {
+          const before = lastRaw;
+          lastRaw = incoming;
+          if (before && incoming.accuracyM <= 30 && incoming.t > before.t) {
+            const speed = distanceBetweenM(before, incoming) / (incoming.t - before.t);
+            fastCount = speed >= 2 && speed <= 12 ? fastCount + 1 : 0;
+          }
+          if (fastCount < 3 && !startNowRequested) return; // 아직 뛰지 않는 중: 거리도 시간도 세지 않는다
+          raceStarted = true;
+          startOffsetSec = incoming.t;
+          setWaitingStart(false);
+        }
+        const rawSample: PositionSample = { ...incoming, t: incoming.t - gate.interruptedSec - startOffsetSec };
         let sample = rawSample;
         if (filter) {
           const filtered = filter.push(rawSample);
@@ -526,7 +550,7 @@ function RaceScreenInner() {
           </div>
           <p className="text-xs text-white/55">
             {sourceLabel}
-            {settings.source === "gps" ? " · 시작하면 위치 사용을 물어봐요. 허용해 주세요" : ""}
+            {settings.source === "gps" ? " · 위치 사용을 허용하고, 뛰기 시작하면 자동으로 출발해요" : ""}
             {voiceSupport.speech ? "" : " · 이 기기는 음성 미지원(자막만)"}
           </p>
           {settings.source === "gps" && (
@@ -574,7 +598,9 @@ function RaceScreenInner() {
           ? "멈춘 것이 감지돼 일시정지 중이에요. 다시 달리면 이어집니다"
           : settings.source === "gps" && gpsAccuracyM === null
             ? "위치 신호를 기다리는 중…"
-            : null;
+            : waitingStart
+              ? "뛰기 시작하면 자동으로 출발해요"
+              : null;
 
   return (
     <main className="mx-auto flex h-dvh w-full max-w-md flex-col gap-3 overflow-hidden p-3">
@@ -670,6 +696,15 @@ function RaceScreenInner() {
           <Link href="/result" className="btn-primary">
             결과 보기
           </Link>
+        ) : waitingStart && !confirmingEnd ? (
+          <div className="flex gap-3">
+            <button type="button" onClick={() => pauseControlRef.current?.startNow()} className="flex-1 btn-primary">
+              바로 시작
+            </button>
+            <button type="button" onClick={() => setConfirmingEnd(true)} className="flex-1 btn-secondary">
+              나가기
+            </button>
+          </div>
         ) : confirmingEnd ? (
           <div className="flex gap-3">
             <button type="button" onClick={() => setConfirmingEnd(false)} className="flex-1 btn-secondary">
