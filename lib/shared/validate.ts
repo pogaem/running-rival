@@ -8,7 +8,7 @@ export const SHARE_DISTANCES_M = [1000, 3000] as const;
 export const MAX_SHARE_POINTS = 400;
 /** 평균 페이스가 이 범위(초/km) 밖이면 사람의 기록으로 보지 않는다 */
 export const MIN_PACE_SEC_PER_KM = 150;
-export const MAX_PACE_SEC_PER_KM = 900;
+export const MAX_PACE_SEC_PER_KM = 1200;
 /** 한 구간의 페이스가 이보다 빠르면(시속 25km 초과) 받지 않는다 */
 export const FASTEST_SEGMENT_SEC_PER_KM = 144;
 export const MAX_ELEVATION_GAIN_M = 3000;

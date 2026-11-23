@@ -36,11 +36,11 @@ describe("parsePaceInput (분·초 입력)", () => {
     if (!bad.ok) expect(bad.message).toContain("0~59");
   });
 
-  it("범위(3:00~12:00) 밖이면 거절한다", () => {
+  it("범위(3:00~20:00) 밖이면 거절한다", () => {
     expect(parsePaceInput("2", "59")).toMatchObject({ ok: false });
     expect(parsePaceInput("3", "00")).toMatchObject({ ok: true });
-    expect(parsePaceInput("12", "00")).toMatchObject({ ok: true });
-    expect(parsePaceInput("12", "01")).toMatchObject({ ok: false });
+    expect(parsePaceInput("20", "00")).toMatchObject({ ok: true });
+    expect(parsePaceInput("20", "01")).toMatchObject({ ok: false });
   });
 });
 

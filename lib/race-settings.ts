@@ -11,9 +11,9 @@ export const RACE_DISTANCES_M = [1000, 3000] as const;
 export type RaceDistanceM = (typeof RACE_DISTANCES_M)[number];
 export const DEFAULT_RACE_DISTANCE_M: RaceDistanceM = 1000;
 
-/** 입력할 수 있는 페이스 범위(초/km): 3:00 ~ 12:00 */
+/** 입력할 수 있는 페이스 범위(초/km): 3:00 ~ 20:00 */
 export const MIN_PACE_SEC_PER_KM = 180;
-export const MAX_PACE_SEC_PER_KM = 720;
+export const MAX_PACE_SEC_PER_KM = 1200;
 /** 기본 평소 페이스: 6:00/km (DESIGN 화면 그림) */
 export const DEFAULT_PACE_SEC_PER_KM = 360;
 
