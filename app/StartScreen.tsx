@@ -2,6 +2,7 @@
 // 시작 화면 (PLAN.md 작업 12, DESIGN.md 1.1)
 // 대결 거리, 평소 페이스, 중계 강도를 정하고 레이스 화면으로 보낸다.
 // 매칭된 상대 칸은 역전 예측 매칭(작업 13)의 결과를 보여 준다. 역전이 "예상"된다는 뜻이지 보장은 아니다.
+import { displayName } from "@/lib/runner-names";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { bestPaceSecPerKm, formatRivalRecord, loadHistoryText, parseHistory } from "@/lib/history";
@@ -164,7 +165,7 @@ export default function StartScreen() {
           {opponent ? (
             <>
               <p className="text-sm">
-                {opponent.id} <span className="rounded bg-foreground/10 px-1.5 py-0.5 text-xs">{OPPONENT_SOURCE_LABEL[opponent.source]}</span>
+                {displayName(opponent.id)} <span className="rounded bg-foreground/10 px-1.5 py-0.5 text-xs">{OPPONENT_SOURCE_LABEL[opponent.source]}</span>
               </p>
               <p className="text-xs text-foreground/60">
                 평균 페이스 {formatPace(averagePaceSecPerKm(opponent))} /km

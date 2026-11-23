@@ -3,6 +3,7 @@
 // 레이스가 끝나면 레이스 화면이 이 기기의 sessionStorage에 담아 둔 요약을 읽어 보여 준다.
 // 승패와 기록, 시간대별 격차 그래프(누가 언제 앞섰는지), 양쪽 기록 조건, 리매치.
 // 라이벌 전적과 개인 최고 기록(작업 18)은 레이스 화면이 저장하면서 요약에 함께 담아 둔다.
+import { displayName } from "@/lib/runner-names";
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
 import { describeNewBest } from "@/lib/history";
@@ -114,7 +115,7 @@ export default function ResultScreen() {
       <header className="pt-4">
         <h1 className="text-2xl font-bold">결과</h1>
         <p className="mt-1 text-sm text-foreground/70">
-          {distanceKm}km · {summary.opponent.id} ({OPPONENT_SOURCE[summary.opponent.source]}) 와의 대결
+          {distanceKm}km · {displayName(summary.opponent.id)} ({OPPONENT_SOURCE[summary.opponent.source]}) 와의 대결
         </p>
       </header>
 
@@ -134,7 +135,7 @@ export default function ResultScreen() {
       {summary.history && (
         <section aria-label="전적과 최고 기록" className="flex flex-col gap-1 rounded-lg border border-foreground/30 p-3 text-sm">
           <p>
-            {summary.opponent.id} 상대 전적 <b>{summary.history.rival.wins}승 {summary.history.rival.losses}패</b>
+            {displayName(summary.opponent.id)} 상대 전적 <b>{summary.history.rival.wins}승 {summary.history.rival.losses}패</b>
           </p>
           {summary.history.newBest && (
             <p className="font-semibold">{describeNewBest(summary.myTimeSec, summary.history.previousBestSec)}</p>

@@ -5,6 +5,7 @@
 // 중계 강도 선택은 원래 시작 화면(작업 12)에 들어갈 것인데, 거기가 생기기 전까지 이 화면에 임시로 둔다.
 // 브라우저는 사용자가 버튼을 누르기 전에는 소리를 막는다. 그래서 "소리 켜고 시작" 버튼을 누르면 레이스가 시작된다.
 // 음성과 효과음(작업 9·10)이 이 화면의 이벤트에 붙어 있다. 진동은 쓰지 않기로 했다.
+import { displayName } from "@/lib/runner-names";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Prediction } from "@/lib/engine/catchup";
@@ -439,7 +440,7 @@ export default function RaceScreen() {
         <header className="pt-4">
           <h1 className="text-2xl font-bold">레이스</h1>
           <p className="mt-1 text-sm text-foreground/70">
-            {sourceLabel} · {opponent?.id ?? "상대 없음"}({opponent?.source === "virtual" ? "가상 러너" : "기록"}) · {raceDistanceM / 1000}km · 내 페이스 {formatPace(settings.paceSecPerKm)}/km
+            {sourceLabel} · {opponent ? displayName(opponent.id) : "상대 없음"}({opponent?.source === "virtual" ? "가상 러너" : "기록"}) · {raceDistanceM / 1000}km · 내 페이스 {formatPace(settings.paceSecPerKm)}/km
           </p>
         </header>
 
@@ -516,7 +517,7 @@ export default function RaceScreen() {
       <header className="pt-4">
         <h1 className="text-2xl font-bold">레이스</h1>
         <p className="mt-1 text-sm text-foreground/70">
-          {sourceLabel} · {opponent?.id ?? "상대 없음"}({opponent?.source === "virtual" ? "가상 러너" : "기록"}) · {raceDistanceM / 1000}km · 내 페이스 {formatPace(settings.paceSecPerKm)}/km
+          {sourceLabel} · {opponent ? displayName(opponent.id) : "상대 없음"}({opponent?.source === "virtual" ? "가상 러너" : "기록"}) · {raceDistanceM / 1000}km · 내 페이스 {formatPace(settings.paceSecPerKm)}/km
         </p>
       </header>
 
