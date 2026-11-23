@@ -139,6 +139,8 @@ export default function RaceScreen() {
     [settings, pool.records],
   );
   const raceDistanceM = settings.distanceM;
+  // 레이스 시간이 실제 시계보다 몇 배 빠른가. 중계 간격을 "실제로 듣는 시간" 기준으로 맞추는 데 쓴다
+  const raceTimeScale = settings.source === "gps" ? 1 : DEMO_SPEED;
   const [intensity, setIntensity] = useState<Intensity>(settings.intensity);
   const [tick, setTick] = useState<RaceTick | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
@@ -218,7 +220,7 @@ export default function RaceScreen() {
   useEffect(() => {
     if (phase !== "running") return;
     if (!opponent) return;
-    const engine = createRaceEngine({ opponent, raceDistanceM });
+    const engine = createRaceEngine({ opponent, raceDistanceM }, { timeScale: raceTimeScale });
     // 데모: 입력한 평소 페이스로 일정하게 달리는 "만든 경로"를 10배속으로 재생한다.
     // GPS: 폰의 실제 위치를 받는다. 둘 다 같은 모양(PositionInput)이라 아래는 똑같이 동작한다
     const input: PositionInput =
@@ -388,7 +390,7 @@ export default function RaceScreen() {
     const speaker = createSpeaker(createBrowserSpeakerEnv());
     speaker.unlock();
     speakerRef.current = speaker;
-    policyRef.current = createVoicePolicy({ intensity });
+    policyRef.current = createVoicePolicy({ intensity, timeScale: raceTimeScale });
     intensityRef.current = intensity;
     const sfx = createSfx(createBrowserSfxEnv());
     void sfx.preload(); // 버튼을 누른 직후에 불러 두면 첫 효과음 전에 준비된다

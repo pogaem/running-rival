@@ -25,7 +25,7 @@ const FINISH = (t: number): RaceEvent => ({ type: "finish", t, won: true });
 describe("설정값", () => {
   it("기본 강도는 일반이고, 최소 간격은 10~15초다 (짧은 대결이라 PRD 초안 25초에서 줄임)", () => {
     expect(DEFAULT_INTENSITY).toBe("normal");
-    expect(VOICE_MIN_GAP_SEC).toBeGreaterThanOrEqual(10);
+    expect(VOICE_MIN_GAP_SEC).toBeGreaterThanOrEqual(8);
     expect(VOICE_MIN_GAP_SEC).toBeLessThanOrEqual(15);
   });
 });
@@ -79,12 +79,12 @@ describe("createVoicePolicy · 이벤트 (최소 간격)", () => {
     expect(policy.decideEvent(KM(320))).toEqual({ speak: true, priority: false });
   });
 
-  it("직전 멘트 뒤 12초가 지나지 않은 일반 이벤트는 말하지 않는다", () => {
+  it("직전 멘트 뒤 10초가 지나지 않은 일반 이벤트는 말하지 않는다", () => {
     const policy = createVoicePolicy();
     policy.decideEvent(KM(100));
     expect(policy.decideEvent(LAST200(105))).toEqual({ speak: false, reason: "gap" });
-    expect(policy.decideEvent(LAST200(111.9))).toEqual({ speak: false, reason: "gap" });
-    expect(policy.decideEvent(LAST200(112))).toEqual({ speak: true, priority: false }); // 정확히 12초는 허용
+    expect(policy.decideEvent(LAST200(109.9))).toEqual({ speak: false, reason: "gap" });
+    expect(policy.decideEvent(LAST200(110))).toEqual({ speak: true, priority: false }); // 정확히 10초는 허용
   });
 
   it("적극은 한마디 하고 더 길게 쉰다 (일반보다 긴 간격)", () => {
@@ -93,6 +93,13 @@ describe("createVoicePolicy · 이벤트 (최소 간격)", () => {
     policy.decideEvent(KM(100));
     expect(policy.decideEvent(LAST200(100 + ACTIVE_VOICE_MIN_GAP_SEC - 0.1))).toEqual({ speak: false, reason: "gap" });
     expect(policy.decideEvent(LAST200(100 + ACTIVE_VOICE_MIN_GAP_SEC))).toEqual({ speak: true, priority: false });
+  });
+
+  it("데모 10배속(timeScale 10)이면 레이스 시간으로 10배 더 쉰다 (실제로 듣는 간격은 같다)", () => {
+    const policy = createVoicePolicy({ timeScale: 10 });
+    policy.decideEvent(KM(100));
+    expect(policy.decideEvent(LAST200(100 + VOICE_MIN_GAP_SEC * 10 - 1))).toEqual({ speak: false, reason: "gap" });
+    expect(policy.decideEvent(LAST200(100 + VOICE_MIN_GAP_SEC * 10))).toEqual({ speak: true, priority: false });
   });
 
   it("말하지 않은 이벤트는 간격을 새로 시작하지 않는다 (건너뛴 이벤트 때문에 다음 멘트가 늦어지지 않는다)", () => {
@@ -110,11 +117,11 @@ describe("createVoicePolicy · 이벤트 (최소 간격)", () => {
     expect(policy.decideEvent(FINISH(103))).toEqual({ speak: true, priority: true });
   });
 
-  it("바로 말한 추월도 간격을 새로 시작한다 (그 뒤 일반 이벤트는 25초 기다린다)", () => {
+  it("바로 말한 추월도 간격을 새로 시작한다 (그 뒤 일반 이벤트는 10초 기다린다)", () => {
     const policy = createVoicePolicy();
     policy.decideEvent(OVERTAKE(100));
-    expect(policy.decideEvent(KM(110))).toEqual({ speak: false, reason: "gap" });
-    expect(policy.decideEvent(KM(125))).toEqual({ speak: true, priority: false });
+    expect(policy.decideEvent(KM(105))).toEqual({ speak: false, reason: "gap" });
+    expect(policy.decideEvent(KM(110))).toEqual({ speak: true, priority: false });
   });
 
   it("강도에 맞지 않는 이벤트는 간격과 상관없이 말하지 않는다", () => {

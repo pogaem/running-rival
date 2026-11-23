@@ -20,11 +20,14 @@ export const INTENSITY_LABEL: Record<Intensity, string> = {
 /** 기본 중계 강도 */
 export const DEFAULT_INTENSITY: Intensity = "normal";
 
-/** 멘트 사이의 최소 간격(초). PRD 초안은 25초였지만, 1km·3km의 짧은 대결에서는 중계가 너무 적어서 12초로 줄였다 */
-export const VOICE_MIN_GAP_SEC = 12;
+/**
+ * 멘트 사이의 최소 간격(실제 시계 기준 초). PRD 초안은 25초였다.
+ * 데모는 10배속이라 레이스 시간으로는 이 값의 10배가 지나야 같은 느낌이 된다 → timeScale 옵션으로 곱한다.
+ */
+export const VOICE_MIN_GAP_SEC = 10;
 
 /** 적극은 추월 예측·승률 변화까지 말해서 멘트가 쉴 틈 없이 이어지기 쉽다. 한마디 하고 쉬도록 간격을 더 둔다 */
-export const ACTIVE_VOICE_MIN_GAP_SEC = 22;
+export const ACTIVE_VOICE_MIN_GAP_SEC = 14;
 
 /** 숫자 없이 "따라붙고 있습니다"만 말하는 예측은 이만큼(초) 간격을 두고 말한다 (같은 말이 반복되지 않게. 초안) */
 export const VAGUE_PREDICTION_GAP_SEC = 60;
@@ -90,6 +93,8 @@ export type VoicePolicyOptions = {
   intensity?: Intensity;
   /** 멘트 사이의 최소 간격(초). 기본 25 */
   minGapSec?: number;
+  /** 레이스 시간이 실제 시계보다 몇 배 빠른가. 데모 10배속이면 10, 실제 GPS는 1(기본). 기본 간격에 곱해진다 */
+  timeScale?: number;
 };
 
 export function createVoicePolicy(options: VoicePolicyOptions = {}): VoicePolicy {
@@ -99,7 +104,8 @@ export function createVoicePolicy(options: VoicePolicyOptions = {}): VoicePolicy
   let lastVagueAt: number | null = null;
 
   // 간격을 직접 정하지 않으면 강도에 맞는 기본 간격을 쓴다
-  const minGap = () => options.minGapSec ?? (intensity === "active" ? ACTIVE_VOICE_MIN_GAP_SEC : VOICE_MIN_GAP_SEC);
+  const minGap = () => options.minGapSec ??
+    (intensity === "active" ? ACTIVE_VOICE_MIN_GAP_SEC : VOICE_MIN_GAP_SEC) * (options.timeScale ?? 1);
   const gapOk = (t: number) => lastSpokenAt === null || t - lastSpokenAt >= minGap();
 
   return {
@@ -124,7 +130,7 @@ export function createVoicePolicy(options: VoicePolicyOptions = {}): VoicePolicy
       if (!prediction || !intensityAllowsPrediction(intensity)) return { speak: false, reason: "intensity" };
       if (!gapOk(t)) return { speak: false, reason: "gap" };
       if (prediction.speak === "vague") {
-        if (lastVagueAt !== null && t - lastVagueAt < VAGUE_PREDICTION_GAP_SEC) return { speak: false, reason: "gap" };
+        if (lastVagueAt !== null && t - lastVagueAt < VAGUE_PREDICTION_GAP_SEC * (options.timeScale ?? 1)) return { speak: false, reason: "gap" };
         lastVagueAt = t;
       }
       lastSpokenAt = t;
