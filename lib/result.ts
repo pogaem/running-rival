@@ -28,6 +28,12 @@ export type RaceSummary = {
   gapSeries: GapPoint[];
   /** 역전이 일어난 순간들 */
   reversals: { t: number; type: "overtake" | "overtaken" }[];
+  /** 전적·최고 기록에 반영한 뒤 채운다 (작업 18). 반영하지 못했으면 없다 */
+  history?: {
+    newBest: boolean;
+    previousBestSec: number | null;
+    rival: { wins: number; losses: number };
+  };
 };
 
 /** 결과 요약을 담아 두는 sessionStorage 이름표 */

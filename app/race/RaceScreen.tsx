@@ -20,6 +20,7 @@ import { createAutoPause } from "@/lib/input/auto-pause";
 import { createPositionFilter } from "@/lib/input/gps-filter";
 import type { InputError, PositionInput } from "@/lib/input/types";
 import { makeStraightTrack } from "@/lib/input/synthetic-track";
+import { loadHistoryText, parseHistory, recordRace, rivalryIntro, saveHistory } from "@/lib/history";
 import { matchForSettings, settingsFromQuery, settingsToQuery } from "@/lib/race-settings";
 import { useSearchParams } from "next/navigation";
 import type { PositionSample } from "@/lib/input/types";
@@ -263,6 +264,19 @@ export default function RaceScreen() {
             myElevationGainM: elevation.gainM,
           });
           if (summary) {
+            // 전적과 개인 최고 기록에 반영한다 (이 기기에만 저장)
+            const outcome = recordRace(parseHistory(loadHistoryText()), {
+              opponentId: summary.opponent.id,
+              distanceM: settings.distanceM,
+              won: summary.won,
+              myTimeSec: summary.myTimeSec,
+            });
+            saveHistory(outcome.history);
+            summary.history = {
+              newBest: outcome.newBest,
+              previousBestSec: outcome.previousBestSec,
+              rival: { wins: outcome.rival.wins, losses: outcome.rival.losses },
+            };
             try {
               sessionStorage.setItem(SUMMARY_STORAGE_KEY, serializeSummary(summary));
             } catch {
@@ -340,6 +354,19 @@ export default function RaceScreen() {
     void sfx.preload(); // 버튼을 누른 직후에 불러 두면 첫 효과음 전에 준비된다
     sfxRef.current = sfx;
     bookRef.current = createPhraseBook();
+    // 지난 대결이 있으면 경기 시작 전에 한마디 전한다 ("설욕전입니다!"). 최소·끄기에서는 말하지 않고 자막만 올린다
+    const intro = opponent ? rivalryIntro(parseHistory(loadHistoryText()).rivals[opponent.id]) : null;
+    if (intro) {
+      const id = nextLogId.current++;
+      const talk = speaker.supported && (intensity === "normal" || intensity === "active");
+      const voice: VoiceStatus = talk ? { state: "pending", text: intro } : { state: "skipped", reason: "intensity" };
+      setLog((current) => prependLog(current, [makePredictionLogEntry(id, 0, intro, nowMs(), nowMs(), voice)]));
+      if (talk) {
+        void speaker.speak(intro, { priority: false }).then((result) => {
+          setLog((current) => applyVoiceResult(current, id, result));
+        });
+      }
+    }
     setPhase("running");
   };
 

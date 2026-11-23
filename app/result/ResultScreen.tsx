@@ -2,9 +2,10 @@
 // 결과 화면 (PLAN.md 작업 17, DESIGN.md 1.3)
 // 레이스가 끝나면 레이스 화면이 이 기기의 sessionStorage에 담아 둔 요약을 읽어 보여 준다.
 // 승패와 기록, 시간대별 격차 그래프(누가 언제 앞섰는지), 양쪽 기록 조건, 리매치.
-// 개인 최고 기록과 전적은 작업 18에서 붙인다.
+// 라이벌 전적과 개인 최고 기록(작업 18)은 레이스 화면이 저장하면서 요약에 함께 담아 둔다.
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
+import { describeNewBest } from "@/lib/history";
 import { formatRaceClock } from "@/lib/output/subtitles";
 import { settingsToQuery } from "@/lib/race-settings";
 import {
@@ -129,6 +130,18 @@ export default function ResultScreen() {
           {summary.reversals.length > 0 ? ` · 역전 ${summary.reversals.length}번` : " · 역전 없이 끝났어요"}
         </p>
       </section>
+
+      {summary.history && (
+        <section aria-label="전적과 최고 기록" className="flex flex-col gap-1 rounded-lg border border-foreground/30 p-3 text-sm">
+          <p>
+            {summary.opponent.id} 상대 전적 <b>{summary.history.rival.wins}승 {summary.history.rival.losses}패</b>
+          </p>
+          {summary.history.newBest && (
+            <p className="font-semibold">{describeNewBest(summary.myTimeSec, summary.history.previousBestSec)}</p>
+          )}
+          <p className="text-xs text-foreground/60">전적과 최고 기록은 이 기기에만 저장돼요.</p>
+        </section>
+      )}
 
       <section aria-label="시간대별 격차 그래프" className="flex flex-col gap-2">
         <h2 className="text-sm font-semibold">누가 언제 앞섰는지</h2>

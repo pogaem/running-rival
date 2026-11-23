@@ -3,7 +3,8 @@
 // 대결 거리, 평소 페이스, 중계 강도를 정하고 레이스 화면으로 보낸다.
 // 매칭된 상대 칸은 역전 예측 매칭(작업 13)의 결과를 보여 준다. 역전이 "예상"된다는 뜻이지 보장은 아니다.
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
+import { bestPaceSecPerKm, formatRivalRecord, loadHistoryText, parseHistory } from "@/lib/history";
 import { INTENSITY_LABEL, type Intensity } from "@/lib/output/voice-policy";
 import {
   averagePaceSecPerKm,
@@ -28,8 +29,15 @@ function choiceClass(selected: boolean) {
   }`;
 }
 
+/** 이 기기에 저장된 전적·최고 기록 글. 서버에서 그릴 때는 비어 있다 */
+function useHistoryText(): string | null {
+  return useSyncExternalStore(() => () => {}, loadHistoryText, () => null);
+}
+
 export default function StartScreen() {
   const router = useRouter();
+  const historyText = useHistoryText();
+  const history = useMemo(() => parseHistory(historyText), [historyText]);
   const [distanceM, setDistanceM] = useState<RaceDistanceM>(DEFAULT_RACE_SETTINGS.distanceM);
   const [minutes, setMinutes] = useState(String(Math.floor(DEFAULT_RACE_SETTINGS.paceSecPerKm / 60)));
   const [seconds, setSeconds] = useState(String(DEFAULT_RACE_SETTINGS.paceSecPerKm % 60).padStart(2, "0"));
@@ -44,6 +52,8 @@ export default function StartScreen() {
     [pace, distanceM],
   );
   const opponent = match?.opponent ?? null;
+  const rivalRecord = opponent ? formatRivalRecord(history.rivals[opponent.id]) : null;
+  const bestPace = bestPaceSecPerKm(history, distanceM);
 
   const start = (source: RaceSource) => {
     if (!pace.ok) return;
@@ -105,10 +115,17 @@ export default function StartScreen() {
           )}
           <button
             type="button"
-            disabled
-            className="rounded-lg border border-dashed border-foreground/30 px-3 py-2 text-sm text-foreground/40"
+            disabled={bestPace === null}
+            onClick={() => {
+              if (bestPace === null) return;
+              setMinutes(String(Math.floor(bestPace / 60)));
+              setSeconds(String(bestPace % 60).padStart(2, "0"));
+            }}
+            className="rounded-lg border border-dashed border-foreground/30 px-3 py-2 text-sm disabled:text-foreground/40"
           >
-            지난 기록 불러오기 (저장된 기록이 아직 없어요)
+            {bestPace === null
+              ? "지난 기록 불러오기 (이 거리의 저장된 기록이 아직 없어요)"
+              : `지난 최고 기록 페이스 불러오기 (${formatPace(bestPace)} /km)`}
           </button>
         </div>
 
@@ -137,7 +154,7 @@ export default function StartScreen() {
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={muted} onChange={(event) => setMuted(event.target.checked)} />
             <span>
-              실험용 <b>중계 끄기</b> <span className="text-foreground/60">(음성·효과음·진동 없이 기록만)</span>
+              실험용 <b>중계 끄기</b> <span className="text-foreground/60">(음성·효과음 없이 기록만)</span>
             </span>
           </label>
         </div>
@@ -155,6 +172,7 @@ export default function StartScreen() {
                   ? ` · 이 대결에서 역전이 ${match.forecast.count}번쯤 예상돼요`
                   : ""}
               </p>
+              {rivalRecord && <p className="text-sm">라이벌 전적 {rivalRecord}</p>}
               {match?.kind === "closest" && (
                 <p className="text-xs text-foreground/60">조건에 맞는 상대가 없어 가장 가까운 기록으로 매칭했어요</p>
               )}
