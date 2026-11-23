@@ -86,7 +86,7 @@ export default function StartScreen() {
               onChange={(event) => setDistanceText(event.target.value)}
               className="w-24 rounded-lg border border-foreground/30 bg-transparent px-3 py-2 text-center text-lg tabular-nums"
             />
-            <span className="text-sm">km (0.5 ~ 5)</span>
+            <span className="text-sm">km (0.5 단위)</span>
           </div>
           {!distance.ok && (
             <p role="alert" className="text-sm text-red-600 dark:text-red-400">
