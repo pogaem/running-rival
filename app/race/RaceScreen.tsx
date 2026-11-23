@@ -346,7 +346,7 @@ export default function RaceScreen() {
       speakerRef.current?.cancel();
       sfxRef.current?.stopAll();
     };
-  }, [phase, outputMoments, opponent, raceDistanceM, settings]);
+  }, [phase, outputMoments, opponent, raceDistanceM, raceTimeScale, settings]);
 
   // 화면 꺼짐 방지: 레이스가 시작된 뒤 지원되는 기기에서만. 화면이 가려졌다 돌아오면 다시 건다
   useEffect(() => {
