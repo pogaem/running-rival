@@ -91,6 +91,16 @@ describe("createSfx", () => {
     expect(stops).toEqual(["heartbeat"]);
   });
 
+  it("이기고 결승선을 넘으면 함성과 함께 박수도 낸다. 추월 때는 박수 없이 함성만", async () => {
+    const { env, plays } = makeEnv();
+    const sfx = createSfx(env);
+    await sfx.preload();
+    sfx.handleEvent(overtake, "normal");
+    expect(plays.map((p) => p.name)).toEqual(["cheer"]);
+    sfx.handleEvent(win, "normal");
+    expect(plays.map((p) => p.name)).toEqual(["cheer", "cheer", "applause"]);
+  });
+
   it("함성이 연달아 나오면 앞의 함성은 줄이고 새로 튼다", async () => {
     const { env, plays, stops } = makeEnv();
     const sfx = createSfx(env);

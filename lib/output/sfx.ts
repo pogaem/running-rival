@@ -14,13 +14,19 @@ export const SFX_URLS = {
   heartbeat: "/sfx/heartbeat.wav",
 } as const;
 
-export type SfxName = keyof typeof SFX_URLS;
+/** 파일 없이 브라우저가 직접 만들어 내는 소리: 박수. 다운로드할 것이 없다 */
+export type SfxName = keyof typeof SFX_URLS | "applause";
+const ALL_SFX: SfxName[] = ["cheer", "heartbeat", "applause"];
 
 /** 소리 크기(0~1). 음성이 묻히지 않게 음성 상한보다 훨씬 작게 둔다 (초안) */
-export const CHEER_VOLUME = 0.4;
+export const CHEER_VOLUME = 0.7;
+/** 승리 결승 박수 */
+export const APPLAUSE_VOLUME = 0.8;
+export const APPLAUSE_SEC = 7;
+export const APPLAUSE_FADE_SEC = 2;
 export const HEARTBEAT_VOLUME = 0.3;
 /** 함성은 이 시간(초)만 틀고 서서히 줄인다 (초안). 원본은 14초라 길다 */
-export const CHEER_PLAY_SEC = 4;
+export const CHEER_PLAY_SEC = 6;
 export const CHEER_FADE_SEC = 1.2;
 /** 심장 박동을 멈출 때 서서히 줄이는 시간(초) */
 export const HEARTBEAT_FADE_SEC = 0.4;
@@ -89,7 +95,7 @@ export function createSfx(env: SfxEnv | null): Sfx {
     async preload() {
       if (!env) return;
       await Promise.all(
-        (Object.keys(SFX_URLS) as SfxName[]).map(async (name) => {
+        ALL_SFX.map(async (name) => {
           try {
             buffers[name] = await env.load(name);
           } catch {
@@ -113,6 +119,11 @@ export function createSfx(env: SfxEnv | null): Sfx {
             durationSec: CHEER_PLAY_SEC,
             fadeSec: CHEER_FADE_SEC,
           });
+          // 이겨서 결승선을 넘을 때는 박수도 함께 낸다
+          const applause = buffers.applause;
+          if (event.type === "finish" && applause) {
+            env.play(applause, { volume: clamp(APPLAUSE_VOLUME), loop: false, durationSec: APPLAUSE_SEC, fadeSec: APPLAUSE_FADE_SEC });
+          }
         } else if (action === "heartbeatOn") {
           const buffer = buffers.heartbeat;
           if (!buffer || heartbeat) return null;
@@ -145,10 +156,41 @@ export function createBrowserSfxEnv(): SfxEnv | null {
   if (!Ctor) return null;
   let context: AudioContext | null = null;
   const getContext = () => (context ??= new Ctor());
+  // 소리 잠금은 버튼을 누른 그 순간에 풀어야 한다(특히 아이폰). 이 함수는 "소리 켜고 시작" 버튼을 누를 때 불리므로 여기서 미리 만들고 깨운다
+  void getContext().resume();
+
+  /** 박수: 짧은 잡음 덩어리(손뼉 하나)를 무작위 시간에 많이 겹쳐 만든다. 처음엔 점점 늘고 끝으로 갈수록 줄어든다 */
+  const makeApplause = (): AudioBuffer => {
+    const ctx = getContext();
+    const rate = ctx.sampleRate;
+    const length = Math.floor(rate * APPLAUSE_SEC);
+    const buffer = ctx.createBuffer(1, length, rate);
+    const data = buffer.getChannelData(0);
+    const claps = 260;
+    for (let i = 0; i < claps; i++) {
+      // 시간 분포: 앞쪽에 몰리다 서서히 드물어진다
+      const start = Math.floor(Math.pow(Math.random(), 1.4) * (length - rate * 0.1));
+      const loudness = 0.35 + Math.random() * 0.65;
+      const decay = 0.012 + Math.random() * 0.02; // 손뼉 하나가 울리는 시간(초)
+      const n = Math.floor(rate * decay * 5);
+      let prev = 0;
+      for (let k = 0; k < n && start + k < length; k++) {
+        const noise = Math.random() * 2 - 1;
+        const bright = noise - prev * 0.6; // 낮은 소리를 덜어내 "짝" 하는 느낌
+        prev = noise;
+        data[start + k] += bright * loudness * Math.exp(-k / (rate * decay));
+      }
+    }
+    let peak = 0;
+    for (let i = 0; i < length; i++) peak = Math.max(peak, Math.abs(data[i]));
+    if (peak > 0) for (let i = 0; i < length; i++) data[i] /= peak;
+    return buffer;
+  };
 
   return {
     async load(name) {
-      const response = await fetch(SFX_URLS[name]);
+      if (name === "applause") return makeApplause();
+      const response = await fetch(SFX_URLS[name as keyof typeof SFX_URLS]);
       if (!response.ok) throw new Error(`효과음을 불러오지 못했다: ${name}`);
       const data = await response.arrayBuffer();
       return getContext().decodeAudioData(data);
