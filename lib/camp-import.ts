@@ -5,6 +5,7 @@
 //
 // 지금은 GPS 보정(튀는 점 제거)을 하지 않는다. 그 보정은 PLAN 작업 15에서 만든다.
 // 그래서 이 도구에 넣을 기록은 이미 정리된 것이어야 한다.
+import { distanceBetweenM } from "./geo";
 import { timeToReachDistance, type RunRecord } from "./record";
 
 /** 참가자가 제공한 위치 기록의 한 점 (이 도구 안에서만 쓰고 저장하지 않는다) */
@@ -24,20 +25,8 @@ export type CampRecordMeta = {
   registrationOrder: number;
 };
 
-const EARTH_RADIUS_M = 6371000;
 /** 변환한 기록에서 점 사이의 거리(미터). 경로 모양이 드러나지 않을 만큼 듬성하게 남긴다 */
 const STEP_M = 250;
-
-/** 두 위치 사이의 거리(미터): 지구를 구로 보고 계산한다 */
-function distanceBetween(a: RawSample, b: RawSample): number {
-  const toRad = (degree: number) => (degree * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLon = toRad(b.lon - a.lon);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
-  return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(h));
-}
 
 const roundTo1 = (value: number) => Math.round(value * 10) / 10;
 
@@ -60,7 +49,7 @@ export function toCampRecord(samples: RawSample[], meta: CampRecordMeta): RunRec
   const raw: { t: number; d: number }[] = [{ t: 0, d: 0 }];
   let distance = 0;
   for (let i = 1; i < samples.length; i++) {
-    distance += distanceBetween(samples[i - 1], samples[i]);
+    distance += distanceBetweenM(samples[i - 1], samples[i]);
     raw.push({ t: samples[i].t - startTime, d: distance });
   }
 
