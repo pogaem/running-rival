@@ -20,6 +20,7 @@ import { createAutoPause } from "@/lib/input/auto-pause";
 import { createPositionFilter } from "@/lib/input/gps-filter";
 import type { InputError, PositionInput } from "@/lib/input/types";
 import { makeStraightTrack } from "@/lib/input/synthetic-track";
+import { createInterruptionTracker } from "@/lib/input/interruption";
 import { loadHistoryText, parseHistory, recordRace, rivalryIntro, saveHistory } from "@/lib/history";
 import { matchForSettings, settingsFromQuery, settingsToQuery } from "@/lib/race-settings";
 import { useSearchParams } from "next/navigation";
@@ -136,6 +137,10 @@ export default function RaceScreen() {
   const [gpsError, setGpsError] = useState<InputError | null>(null);
   const [gpsRejected, setGpsRejected] = useState(0); // 보정에서 걸러 낸 점의 수
   const [autoPaused, setAutoPaused] = useState(false); // 멈춘 것이 감지돼 레이스가 일시정지됐는가
+  const [interrupted, setInterrupted] = useState(false); // 화면이 가려져 경기를 멈춘 중인가
+  const [interruptCount, setInterruptCount] = useState(0);
+  const [interruptedSec, setInterruptedSec] = useState(0); // 방해로 멈춘 시간(입력 시계 초)
+  const [confirmingEnd, setConfirmingEnd] = useState(false);
   const [wake, setWake] = useState<WakeStatus>("waiting");
   const wakeSupported = useWakeLockSupported();
   const voiceSupport = useVoiceSupport();
@@ -214,6 +219,21 @@ export default function RaceScreen() {
     const filter = settings.source === "gps" ? createPositionFilter() : null; // 데모 경로는 깨끗해서 보정이 필요 없다
     const autoPause = settings.source === "gps" ? createAutoPause() : null; // 데모는 멈추지 않는다
     const elevation = createElevationTracker();
+    // 전화·앱 전환으로 화면이 가려지면 경기를 멈추고, 돌아오면 이어간다 (레이스 시간·상대 기록도 같이 멈춤)
+    const interruption = createInterruptionTracker();
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        interruption.hide();
+        speakerRef.current?.cancel();
+        sfxRef.current?.stopAll();
+        setInterrupted(true);
+      } else {
+        interruption.show();
+        setInterrupted(false);
+      }
+      setInterruptCount(interruption.count);
+    };
+    document.addEventListener("visibilitychange", onVisibility);
     const gapSeries: GapPoint[] = [];
     const allEvents: RaceEvent[] = [];
     let summarySaved = false;
@@ -224,7 +244,12 @@ export default function RaceScreen() {
     }
 
     input.start({
-      onSample: (rawSample) => {
+      onSample: (incoming) => {
+        const gate = interruption.onSample(incoming.t);
+        if (gate.skip) return; // 화면이 가려진 동안의 위치는 쓰지 않는다
+        setInterruptedSec(gate.interruptedSec);
+        // 멈춘 시간을 뺀 시계로 바꿔서 쓴다. 이하 필터·자동 일시정지·엔진은 이 시계를 본다
+        const rawSample: PositionSample = { ...incoming, t: incoming.t - gate.interruptedSec };
         let sample = rawSample;
         if (filter) {
           const filtered = filter.push(rawSample);
@@ -300,6 +325,7 @@ export default function RaceScreen() {
     });
 
     return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
       input.stop();
       speakerRef.current?.cancel();
       sfxRef.current?.stopAll();
@@ -516,6 +542,17 @@ export default function RaceScreen() {
         </section>
       )}
 
+      {interrupted && (
+        <p role="status" className="rounded-lg border border-foreground/30 p-3 text-center text-sm font-semibold">
+          화면이 가려져서 경기를 멈췄어요. 돌아오면 이어집니다
+        </p>
+      )}
+      {!interrupted && interruptCount > 0 && (
+        <p role="status" className="rounded-lg border border-foreground/30 p-3 text-center text-xs text-foreground/70">
+          화면이 가려진 {interruptCount}번 동안 경기를 멈췄다가 이어갔어요 (멈춘 시간 {Math.round(interruptedSec)}초는 기록에서 뺐어요)
+        </p>
+      )}
+
       {autoPaused && (
         <p role="status" className="rounded-lg border border-foreground/30 p-3 text-center text-sm font-semibold">
           일시정지 중 · 멈춘 것이 감지됐어요. 다시 달리면 이어집니다 (상대 기록과 중계도 멈춰 있어요)
@@ -628,13 +665,44 @@ export default function RaceScreen() {
                 : "켜는 중"}
       </p>
 
-      <div className="mt-auto flex gap-3">
-        <Link
-          href="/result"
-          className="flex-1 rounded-lg bg-foreground px-4 py-3 text-center font-semibold text-background"
-        >
-          {finished || !running ? "결과 보기" : "종료"}
-        </Link>
+      <div className="mt-auto flex flex-col gap-3">
+        {confirmingEnd && !finished && running && (
+          <p role="alert" className="rounded-lg border border-foreground/30 p-3 text-sm">
+            끝까지 달리지 않고 종료하면 결과와 전적에 반영되지 않아요. 정말 종료할까요?
+          </p>
+        )}
+        {finished || !running ? (
+          <Link
+            href="/result"
+            className="rounded-lg bg-foreground px-4 py-3 text-center font-semibold text-background"
+          >
+            결과 보기
+          </Link>
+        ) : confirmingEnd ? (
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setConfirmingEnd(false)}
+              className="flex-1 rounded-lg border border-foreground px-4 py-3 font-semibold"
+            >
+              계속 달리기
+            </button>
+            <Link
+              href="/result"
+              className="flex-1 rounded-lg bg-foreground px-4 py-3 text-center font-semibold text-background"
+            >
+              종료
+            </Link>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmingEnd(true)}
+            className="rounded-lg bg-foreground px-4 py-3 text-center font-semibold text-background"
+          >
+            종료
+          </button>
+        )}
       </div>
     </main>
   );
