@@ -46,34 +46,34 @@ describe("parsePaceInput (분·초 입력)", () => {
 
 describe("설정 ↔ 주소 쿼리", () => {
   it("보낸 설정을 그대로 읽는다", () => {
-    const settings: RaceSettings = { distanceM: 3000, paceSecPerKm: 345, intensity: "active" };
+    const settings: RaceSettings = { source: "gps", distanceM: 3000, paceSecPerKm: 345, intensity: "active" };
     const params = new URLSearchParams(settingsToQuery(settings));
     expect(settingsFromQuery((key) => params.get(key))).toEqual(settings);
   });
 
   it("쿼리가 없으면 기본값이다 (일반, 5km, 6:00)", () => {
     expect(settingsFromQuery(() => null)).toEqual(DEFAULT_RACE_SETTINGS);
-    expect(DEFAULT_RACE_SETTINGS).toEqual({ distanceM: 5000, paceSecPerKm: 360, intensity: "normal" });
+    expect(DEFAULT_RACE_SETTINGS).toEqual({ source: "demo", distanceM: 5000, paceSecPerKm: 360, intensity: "normal" });
   });
 
   it("잘못된 값은 항목별로 기본값으로 바꾼다", () => {
     const params = new URLSearchParams({ d: "10000", p: "30", i: "아주크게" });
     expect(settingsFromQuery((key) => params.get(key))).toEqual(DEFAULT_RACE_SETTINGS);
     const mixed = new URLSearchParams({ d: "3000", p: "abc", i: "off" });
-    expect(settingsFromQuery((key) => mixed.get(key))).toEqual({ distanceM: 3000, paceSecPerKm: 360, intensity: "off" });
+    expect(settingsFromQuery((key) => mixed.get(key))).toEqual({ source: "demo", distanceM: 3000, paceSecPerKm: 360, intensity: "off" });
   });
 });
 
 describe("matchForSettings (설정으로 상대 고르기)", () => {
   it("설정이 같으면 늘 같은 상대가 나온다", () => {
-    const settings: RaceSettings = { distanceM: 5000, paceSecPerKm: 320, intensity: "normal" };
+    const settings: RaceSettings = { source: "demo", distanceM: 5000, paceSecPerKm: 320, intensity: "normal" };
     expect(matchForSettings(settings, virtualRunners)?.opponent.id).toBe(matchForSettings(settings, virtualRunners)?.opponent.id);
     expect(matchForSettings(settings, virtualRunners)?.opponent.id).toBe("가상러너-03");
   });
 
   it("3km와 5km 모두 상대가 나온다", () => {
     for (const distanceM of [3000, 5000] as const) {
-      expect(matchForSettings({ distanceM, paceSecPerKm: 360, intensity: "normal" }, virtualRunners)).not.toBeNull();
+      expect(matchForSettings({ source: "demo", distanceM, paceSecPerKm: 360, intensity: "normal" }, virtualRunners)).not.toBeNull();
     }
   });
 

@@ -13,8 +13,10 @@ import { createRaceEngine } from "@/lib/engine/race-engine";
 import { displayPercent, WIN_STAGE_LABEL } from "@/lib/engine/winprob";
 import { distanceBetweenM } from "@/lib/geo";
 import { createDemoInput, DEMO_SPEED } from "@/lib/input/demo-input";
+import { createBrowserGpsEnv, createGpsInput } from "@/lib/input/gps-input";
+import type { InputError, PositionInput } from "@/lib/input/types";
 import { makeStraightTrack } from "@/lib/input/synthetic-track";
-import { matchForSettings, settingsFromQuery } from "@/lib/race-settings";
+import { matchForSettings, settingsFromQuery, settingsToQuery } from "@/lib/race-settings";
 import { useSearchParams } from "next/navigation";
 import type { PositionSample } from "@/lib/input/types";
 import { createBrowserSfxEnv, createSfx, type Sfx } from "@/lib/output/sfx";
@@ -124,6 +126,9 @@ export default function RaceScreen() {
   const [tick, setTick] = useState<RaceTick | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [running, setRunning] = useState(true);
+  // 실제 GPS일 때: 마지막 위치 정확도(m)와 위치 오류
+  const [gpsAccuracyM, setGpsAccuracyM] = useState<number | null>(null);
+  const [gpsError, setGpsError] = useState<InputError | null>(null);
   const [wake, setWake] = useState<WakeStatus>("waiting");
   const wakeSupported = useWakeLockSupported();
   const voiceSupport = useVoiceSupport();
@@ -191,12 +196,14 @@ export default function RaceScreen() {
     if (phase !== "running") return;
     if (!opponent) return;
     const engine = createRaceEngine({ opponent, raceDistanceM });
-    // 내 위치는 입력한 평소 페이스로 일정하게 달리는 "만든 경로"다. 실제 GPS는 작업 14에서 같은 길로 붙인다
-    const input = createDemoInput(
-      makeStraightTrack({ paceSecPerKm: settings.paceSecPerKm, distanceM: raceDistanceM }),
-    );
+    // 데모: 입력한 평소 페이스로 일정하게 달리는 "만든 경로"를 10배속으로 재생한다.
+    // GPS: 폰의 실제 위치를 받는다. 둘 다 같은 모양(PositionInput)이라 아래는 똑같이 동작한다
+    const input: PositionInput =
+      settings.source === "gps"
+        ? createGpsInput(createBrowserGpsEnv())
+        : createDemoInput(makeStraightTrack({ paceSecPerKm: settings.paceSecPerKm, distanceM: raceDistanceM }));
     let previous: PositionSample | null = null;
-    let traveled = 0; // 누적 거리. GPS 보정은 작업 15에서 만든다(데모 경로는 깨끗해서 필요 없다)
+    let traveled = 0; // 누적 거리. GPS 보정(튀는 값 제거)은 작업 15에서 만든다. 지금은 받은 값을 그대로 더한다
 
     input.start({
       onSample: (sample) => {
@@ -208,8 +215,17 @@ export default function RaceScreen() {
         latestTick.current = result;
         setTick(result);
         outputMoments(result.events, result.prediction, sample.t, decidedAtMs);
+        if (settings.source === "gps") {
+          setGpsAccuracyM(sample.accuracyM);
+          setGpsError(null);
+          if (result.finished) {
+            input.stop(); // 결승선을 지나면 위치 추적을 끈다
+            setRunning(false);
+          }
+        }
       },
       onEnd: () => setRunning(false),
+      onError: (error) => setGpsError(error),
     });
 
     return () => {
@@ -217,7 +233,7 @@ export default function RaceScreen() {
       speakerRef.current?.cancel();
       sfxRef.current?.stopAll();
     };
-  }, [phase, outputMoments, opponent, raceDistanceM, settings.paceSecPerKm]);
+  }, [phase, outputMoments, opponent, raceDistanceM, settings.paceSecPerKm, settings.source]);
 
   // 화면 꺼짐 방지: 레이스가 시작된 뒤 지원되는 기기에서만. 화면이 가려졌다 돌아오면 다시 건다
   useEffect(() => {
@@ -278,6 +294,9 @@ export default function RaceScreen() {
     outputMoments([event], null, t, nowMs());
   };
 
+  const sourceLabel = settings.source === "gps" ? "실제 GPS" : `데모 · ${DEMO_SPEED}배속`;
+  const demoUrl = `/race?${settingsToQuery({ ...settings, source: "demo" })}`;
+
   const myDistance = tick?.snapshot.myDistanceM ?? 0;
   const gap = tick?.snapshot.gapM ?? 0;
   const gapPosition = 50 + (Math.max(-GAP_BAR_RANGE_M, Math.min(GAP_BAR_RANGE_M, gap)) / GAP_BAR_RANGE_M) * 50;
@@ -310,7 +329,7 @@ export default function RaceScreen() {
         <header className="pt-4">
           <h1 className="text-2xl font-bold">레이스</h1>
           <p className="mt-1 text-sm text-foreground/70">
-            데모 · {DEMO_SPEED}배속 · {opponent?.id ?? "상대 없음"}({opponent?.source === "virtual" ? "가상 러너" : "기록"}) · {raceDistanceM / 1000}km · 내 페이스 {formatPace(settings.paceSecPerKm)}/km
+            {sourceLabel} · {opponent?.id ?? "상대 없음"}({opponent?.source === "virtual" ? "가상 러너" : "기록"}) · {raceDistanceM / 1000}km · 내 페이스 {formatPace(settings.paceSecPerKm)}/km
           </p>
         </header>
 
@@ -320,6 +339,19 @@ export default function RaceScreen() {
             시작 화면에서 정한 강도입니다. 최소는 추월·결승만, 일반은 1km 통과·마지막 200m·접전까지, 적극은 추월 예측과 승률 변화까지 말합니다.
           </p>
         </section>
+
+        {settings.source === "gps" && (
+          <section aria-label="위치 안내" className="flex flex-col gap-1 rounded-lg border border-foreground/30 p-3 text-sm">
+            <h2 className="font-semibold">위치 권한이 필요해요</h2>
+            <p>시작을 누르면 브라우저가 위치 사용을 물어봐요. <b>허용</b>해야 내가 달린 거리를 잴 수 있어요.</p>
+            <p className="text-xs text-foreground/60">
+              위치 좌표는 이 기기 안에서 거리를 재는 데만 쓰고, 저장하거나 서버로 보내지 않아요. 하늘이 트인 야외에서 정확해요.
+            </p>
+            <Link className="text-xs underline" href={demoUrl}>
+              실제로 뛰지 않고 데모로 체험하기
+            </Link>
+          </section>
+        )}
 
         <section aria-label="소리 안내" className="flex flex-col gap-1 rounded-lg border border-foreground/30 p-3 text-sm">
           <p>이어폰을 끼고, 음악을 듣는다면 틀어 두세요. 이어폰의 외부 소리 듣기 모드를 켜고 뛰는 것을 권장합니다.</p>
@@ -374,9 +406,28 @@ export default function RaceScreen() {
       <header className="pt-4">
         <h1 className="text-2xl font-bold">레이스</h1>
         <p className="mt-1 text-sm text-foreground/70">
-          데모 · {DEMO_SPEED}배속 · {opponent?.id ?? "상대 없음"}({opponent?.source === "virtual" ? "가상 러너" : "기록"}) · {raceDistanceM / 1000}km · 내 페이스 {formatPace(settings.paceSecPerKm)}/km
+          {sourceLabel} · {opponent?.id ?? "상대 없음"}({opponent?.source === "virtual" ? "가상 러너" : "기록"}) · {raceDistanceM / 1000}km · 내 페이스 {formatPace(settings.paceSecPerKm)}/km
         </p>
       </header>
+
+      {settings.source === "gps" && (
+        <section aria-label="위치 상태" className="flex flex-col gap-1 rounded-lg border border-foreground/30 p-3 text-sm">
+          {gpsError ? (
+            <>
+              <p role="alert" className="text-red-600 dark:text-red-400">
+                {gpsError.message}
+              </p>
+              <Link className="underline" href={demoUrl}>
+                데모 모드로 체험하기
+              </Link>
+            </>
+          ) : gpsAccuracyM === null ? (
+            <p className="text-foreground/70">위치 신호를 기다리는 중…</p>
+          ) : (
+            <p className="text-foreground/70">위치 정확도 약 ±{Math.round(gpsAccuracyM)}m</p>
+          )}
+        </section>
+      )}
 
       <section aria-label="진행 상황" className="flex items-end justify-between">
         <p className="text-3xl font-bold tabular-nums">

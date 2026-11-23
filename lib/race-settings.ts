@@ -17,13 +17,19 @@ export const MAX_PACE_SEC_PER_KM = 720;
 /** 기본 평소 페이스: 6:00/km (DESIGN 화면 그림) */
 export const DEFAULT_PACE_SEC_PER_KM = 360;
 
+/** 위치를 어디서 받는가: demo는 만든 경로를 10배속으로 재생, gps는 폰의 실제 위치 */
+export type RaceSource = "demo" | "gps";
+
 export type RaceSettings = {
+  /** 위치 입력 방식 */
+  source: RaceSource;
   distanceM: RaceDistanceM;
   paceSecPerKm: number;
   intensity: Intensity;
 };
 
 export const DEFAULT_RACE_SETTINGS: RaceSettings = {
+  source: "demo",
   distanceM: DEFAULT_RACE_DISTANCE_M,
   paceSecPerKm: DEFAULT_PACE_SEC_PER_KM,
   intensity: DEFAULT_INTENSITY,
@@ -62,6 +68,7 @@ const INTENSITIES: readonly Intensity[] = ["off", "minimal", "normal", "active"]
 /** 설정을 주소에 붙일 글(쿼리)로 만든다 */
 export function settingsToQuery(settings: RaceSettings): string {
   const params = new URLSearchParams({
+    m: settings.source,
     d: String(settings.distanceM),
     p: String(settings.paceSecPerKm),
     i: settings.intensity,
@@ -75,6 +82,7 @@ export function settingsFromQuery(get: (key: string) => string | null | undefine
   const pace = Number(get("p"));
   const intensity = get("i");
   return {
+    source: get("m") === "gps" ? "gps" : "demo",
     distanceM: (RACE_DISTANCES_M as readonly number[]).includes(distance)
       ? (distance as RaceDistanceM)
       : DEFAULT_RACE_SETTINGS.distanceM,

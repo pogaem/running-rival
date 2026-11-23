@@ -14,6 +14,7 @@ import {
   RACE_DISTANCES_M,
   settingsToQuery,
   type RaceDistanceM,
+  type RaceSource,
 } from "@/lib/race-settings";
 
 /** 화면에서 고르는 중계 강도 (끄기는 실험용이라 따로 둔다) */
@@ -39,14 +40,14 @@ export default function StartScreen() {
   const intensity: Intensity = muted ? "off" : mainIntensity;
 
   const match = useMemo(
-    () => (pace.ok ? matchForSettings({ distanceM, paceSecPerKm: pace.paceSecPerKm, intensity: "normal" }) : null),
+    () => (pace.ok ? matchForSettings({ source: "gps", distanceM, paceSecPerKm: pace.paceSecPerKm, intensity: "normal" }) : null),
     [pace, distanceM],
   );
   const opponent = match?.opponent ?? null;
 
-  const start = () => {
+  const start = (source: RaceSource) => {
     if (!pace.ok) return;
-    router.push(`/race?${settingsToQuery({ distanceM, paceSecPerKm: pace.paceSecPerKm, intensity })}`);
+    router.push(`/race?${settingsToQuery({ source, distanceM, paceSecPerKm: pace.paceSecPerKm, intensity })}`);
   };
 
   return (
@@ -166,14 +167,24 @@ export default function StartScreen() {
 
       <p className="text-xs text-foreground/60">이어폰의 외부 소리 듣기 모드를 켜고 뛰는 것을 권장합니다.</p>
 
-      <button
-        type="button"
-        onClick={start}
-        disabled={!pace.ok || !opponent}
-        className="mt-auto rounded-lg bg-foreground px-4 py-3 text-center font-semibold text-background disabled:opacity-40"
-      >
-        대결 시작
-      </button>
+      <div className="mt-auto flex flex-col gap-2">
+        <button
+          type="button"
+          onClick={() => start("gps")}
+          disabled={!pace.ok || !opponent}
+          className="rounded-lg bg-foreground px-4 py-3 text-center font-semibold text-background disabled:opacity-40"
+        >
+          대결 시작 (실제 GPS)
+        </button>
+        <button
+          type="button"
+          onClick={() => start("demo")}
+          disabled={!pace.ok || !opponent}
+          className="rounded-lg border border-foreground/30 px-4 py-2 text-center text-sm disabled:opacity-40"
+        >
+          데모로 체험하기 (달리지 않고 10배속)
+        </button>
+      </div>
     </main>
   );
 }

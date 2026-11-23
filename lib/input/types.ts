@@ -22,6 +22,17 @@ export type InputHandlers = {
   onSample: (sample: PositionSample) => void;
   /** 입력이 끝났을 때(데모는 경로의 마지막 점까지 보낸 뒤) 한 번 불린다 */
   onEnd?: () => void;
+  /** 입력을 못 쓰게 됐을 때(실제 GPS: 권한 거부, 신호 없음 등) 불린다. 데모 입력은 부르지 않는다 */
+  onError?: (error: InputError) => void;
+};
+
+/** 입력 오류의 종류: 위치 권한 거부 / 위치를 알 수 없음 / 위치 응답이 너무 늦음 / 이 기기가 위치를 지원하지 않음 */
+export type InputErrorKind = "denied" | "unavailable" | "timeout" | "unsupported";
+
+export type InputError = {
+  kind: InputErrorKind;
+  /** 사용자에게 보여 줄 수 있는 한국어 설명 */
+  message: string;
 };
 
 /** 위치 입력: 실제 GPS 입력과 데모 입력이 똑같이 지키는 약속 */
