@@ -14,6 +14,8 @@ import { displayPercent, WIN_STAGE_LABEL } from "@/lib/engine/winprob";
 import { distanceBetweenM } from "@/lib/geo";
 import { createDemoInput, DEMO_SPEED } from "@/lib/input/demo-input";
 import { createBrowserGpsEnv, createGpsInput } from "@/lib/input/gps-input";
+import { createElevationTracker } from "@/lib/input/elevation";
+import { appendGapPoint, buildRaceSummary, serializeSummary, SUMMARY_STORAGE_KEY, type GapPoint } from "@/lib/result";
 import { createAutoPause } from "@/lib/input/auto-pause";
 import { createPositionFilter } from "@/lib/input/gps-filter";
 import type { InputError, PositionInput } from "@/lib/input/types";
@@ -210,6 +212,15 @@ export default function RaceScreen() {
     let traveled = 0; // 누적 거리. 실제 GPS는 보정(정확도 나쁜 점·순간 이동 제거, 이동 평균)을 거친 점만 더한다
     const filter = settings.source === "gps" ? createPositionFilter() : null; // 데모 경로는 깨끗해서 보정이 필요 없다
     const autoPause = settings.source === "gps" ? createAutoPause() : null; // 데모는 멈추지 않는다
+    const elevation = createElevationTracker();
+    const gapSeries: GapPoint[] = [];
+    const allEvents: RaceEvent[] = [];
+    let summarySaved = false;
+    try {
+      sessionStorage.removeItem(SUMMARY_STORAGE_KEY); // 지난 대결의 결과가 남아 있지 않게
+    } catch {
+      // 저장소를 못 쓰는 환경이면 결과 화면이 "결과 없음"으로 나온다
+    }
 
     input.start({
       onSample: (rawSample) => {
@@ -233,8 +244,32 @@ export default function RaceScreen() {
           raceTimeSec = pause.raceTimeSec;
         }
 
+        elevation.update(sample.ele);
         const decidedAtMs = nowMs();
         const result = engine.update(raceTimeSec, traveled);
+        appendGapPoint(gapSeries, { t: raceTimeSec, gapM: result.snapshot.gapM });
+        allEvents.push(...result.events);
+        // 결승선을 지나면 결과를 이 기기에 잠깐 담아 결과 화면이 읽게 한다
+        const finish = result.events.find((event) => event.type === "finish");
+        if (finish && finish.type === "finish" && !summarySaved) {
+          summarySaved = true;
+          appendGapPoint(gapSeries, { t: raceTimeSec, gapM: result.snapshot.gapM }, 0);
+          const summary = buildRaceSummary({
+            settings,
+            opponent,
+            finishEvent: finish,
+            gapSeries,
+            events: allEvents,
+            myElevationGainM: elevation.gainM,
+          });
+          if (summary) {
+            try {
+              sessionStorage.setItem(SUMMARY_STORAGE_KEY, serializeSummary(summary));
+            } catch {
+              // 저장하지 못해도 레이스는 계속된다
+            }
+          }
+        }
         latestTick.current = result;
         setTick(result);
         outputMoments(result.events, result.prediction, raceTimeSec, decidedAtMs);
@@ -255,7 +290,7 @@ export default function RaceScreen() {
       speakerRef.current?.cancel();
       sfxRef.current?.stopAll();
     };
-  }, [phase, outputMoments, opponent, raceDistanceM, settings.paceSecPerKm, settings.source]);
+  }, [phase, outputMoments, opponent, raceDistanceM, settings]);
 
   // 화면 꺼짐 방지: 레이스가 시작된 뒤 지원되는 기기에서만. 화면이 가려졌다 돌아오면 다시 건다
   useEffect(() => {
