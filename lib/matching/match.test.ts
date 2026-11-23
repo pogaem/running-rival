@@ -2,6 +2,9 @@
 import { describe, expect, it } from "vitest";
 import type { RunRecord } from "../record";
 import { virtualRunners } from "../runners";
+
+/** 처음 만든 가상 러너 9명(01~09). 느리거나 빠른 쪽을 채우려고 뒤에 더한 러너는 뺀다 */
+const ORIGINAL_NINE = virtualRunners.slice(0, 9);
 import { LATE_REVERSAL_FRACTION, matchOpponent, MATCH_PACE_RANGE_SEC } from "./match";
 
 function makeRecord(id: string, avgPace: number, ratios: number[], options: { order?: number; elevation?: number | null; totalM?: number } = {}): RunRecord {
@@ -118,15 +121,15 @@ describe("matchOpponent · 내 프로필", () => {
 
 describe("가상 러너 9명으로 매칭 (결과가 매번 같다)", () => {
   it("같은 입력이면 항상 같은 상대가 나온다", () => {
-    const first = matchOpponent(virtualRunners, { distanceM: 5000, paceSecPerKm: 320 });
+    const first = matchOpponent(ORIGINAL_NINE, { distanceM: 5000, paceSecPerKm: 320 });
     for (let i = 0; i < 5; i++) {
-      expect(matchOpponent(virtualRunners, { distanceM: 5000, paceSecPerKm: 320 })?.opponent.id).toBe(first?.opponent.id);
+      expect(matchOpponent(ORIGINAL_NINE, { distanceM: 5000, paceSecPerKm: 320 })?.opponent.id).toBe(first?.opponent.id);
     }
     expect(first?.opponent.id).toBe("가상러너-03");
   });
 
   it("5:20/km 5km는 가상러너-03(초반 질주형)과 매칭되어 예상 역전이 1회다", () => {
-    const result = matchOpponent(virtualRunners, { distanceM: 5000, paceSecPerKm: 320 });
+    const result = matchOpponent(ORIGINAL_NINE, { distanceM: 5000, paceSecPerKm: 320 });
     expect(result).toMatchObject({ kind: "reversal" });
     expect(result?.forecast.count).toBe(1);
   });

@@ -26,7 +26,7 @@ describe("시뮬레이션 재료", () => {
   });
 
   it("페이스만 보고 고르면 평균 페이스가 가장 가까운 상대가 나온다", () => {
-    const picked = matchByPaceOnly(virtualRunners, 5000, 331);
+    const picked = matchByPaceOnly(virtualRunners.slice(0, 9), 5000, 331);
     expect(picked?.id).toBe("가상러너-03"); // 5:30
   });
 
@@ -36,11 +36,11 @@ describe("시뮬레이션 재료", () => {
 });
 
 describe("runSimulation", () => {
-  it("같은 설정이면 같은 결과이고, 표본 수는 러너 9 × 거리 2 × 반복 횟수다", () => {
+  it("같은 설정이면 같은 결과이고, 표본 수는 러너 수 × 거리 2 × 반복 횟수다", () => {
     const a = runSimulation({ trials: 5 });
     const b = runSimulation({ trials: 5 });
     expect(a).toEqual(b);
-    expect(a.races).toBe(9 * 2 * 5);
+    expect(a.races).toBe(virtualRunners.length * 2 * 5);
     expect(a.pacesOnly.meanReversals).toBeGreaterThanOrEqual(0);
     expect(a.prediction.shareWithReversal).toBeLessThanOrEqual(1);
   });

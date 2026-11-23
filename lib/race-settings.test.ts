@@ -74,7 +74,7 @@ describe("matchForSettings (설정으로 상대 고르기)", () => {
   it("설정이 같으면 늘 같은 상대가 나온다", () => {
     const settings: RaceSettings = { source: "demo", distanceM: 1000, paceSecPerKm: 320, intensity: "normal" };
     expect(matchForSettings(settings, virtualRunners)?.opponent.id).toBe(matchForSettings(settings, virtualRunners)?.opponent.id);
-    expect(matchForSettings(settings, virtualRunners)?.opponent.id).toBe("가상러너-06");
+    expect(matchForSettings(settings, virtualRunners.slice(0, 9))?.opponent.id).toBe("가상러너-06");
   });
 
   it("1km와 3km 모두 상대가 나온다", () => {
@@ -85,5 +85,14 @@ describe("matchForSettings (설정으로 상대 고르기)", () => {
 
   it("앱에 들어 있는 기록으로도 매칭된다 (기본 기록 사용)", () => {
     expect(matchForSettings(DEFAULT_RACE_SETTINGS)).not.toBeNull();
+  });
+
+  it("입력할 수 있는 모든 페이스(3:00~20:00)에서 ±20초 안의 상대가 있다", () => {
+    for (const distanceM of [1000, 3000] as const) {
+      for (let pace = 180; pace <= 1200; pace += 5) {
+        const match = matchForSettings({ source: "demo", distanceM, paceSecPerKm: pace, intensity: "normal" }, virtualRunners);
+        expect(Math.abs(match!.paceDiffSecPerKm), `${distanceM}m ${pace}초/km`).toBeLessThanOrEqual(20);
+      }
+    }
   });
 });

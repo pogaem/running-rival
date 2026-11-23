@@ -33,9 +33,9 @@ function shapeOf(record: RunRecord): "일정형" | "초반 질주형" | "후반 
 }
 
 describe("가상 러너", () => {
-  it("5~10명이다", () => {
+  it("5~99명이다 (등록 순번 1~99) (3:00~20:00 페이스를 촘촘히 덮는다)", () => {
     expect(virtualRunners.length).toBeGreaterThanOrEqual(5);
-    expect(virtualRunners.length).toBeLessThanOrEqual(10);
+    expect(virtualRunners.length).toBeLessThanOrEqual(99);
   });
 
   it("모두 기록 모양을 지킨다", () => {
