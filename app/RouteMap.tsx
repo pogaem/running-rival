@@ -6,7 +6,7 @@ const W = 340;
 const STEPS = 240;
 
 /** 화면 비율에 맞춘 두 가지 모양: wide(시작 화면 위쪽, 가로로 넓음) · tall(레이스·결과 화면, 세로로 김) */
-const HEIGHTS = { wide: 272, tall: 380 } as const;
+const HEIGHTS = { banner: 190, compact: 300, wide: 272, tall: 380 } as const;
 export type RouteVariant = keyof typeof HEIGHTS;
 
 type Geometry = { h: number; route: { x: number; y: number }[]; contours: string[] };
@@ -37,6 +37,8 @@ function contourPaths(cx: number, cy: number, rings: number, step: number, seed:
 
 const GEOMETRY: Record<RouteVariant, Geometry> = {
   wide: { h: HEIGHTS.wide, route: buildRoute(HEIGHTS.wide, 38), contours: [...contourPaths(60, 90, 8, 20, 1), ...contourPaths(290, 220, 9, 18, 4)] },
+  banner: { h: HEIGHTS.banner, route: buildRoute(HEIGHTS.banner, 58), contours: [...contourPaths(60, 70, 6, 16, 1), ...contourPaths(290, 150, 7, 14, 4)] },
+  compact: { h: HEIGHTS.compact, route: buildRoute(HEIGHTS.compact, 92), contours: [...contourPaths(60, 90, 8, 18, 1), ...contourPaths(290, 230, 9, 16, 4)] },
   tall: { h: HEIGHTS.tall, route: buildRoute(HEIGHTS.tall, 112), contours: [...contourPaths(60, 110, 9, 22, 1), ...contourPaths(290, 300, 10, 20, 4)] },
 };
 

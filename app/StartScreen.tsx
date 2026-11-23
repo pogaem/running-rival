@@ -26,7 +26,7 @@ const MAIN_INTENSITIES: Intensity[] = ["minimal", "normal", "active"];
 const OPPONENT_SOURCE_LABEL = { virtual: "가상 러너", camp: "캠프 참가자", mine: "내 기록", shared: "다른 러너 기록" } as const;
 
 function choiceClass(selected: boolean) {
-  return `rounded-full border px-3 py-2.5 text-sm font-semibold ${
+  return `rounded-full border px-3 py-2 text-sm font-semibold ${
     selected ? "border-white bg-white text-[#0a0c12]" : "border-white/20 bg-white/5"
   }`;
 }
@@ -80,134 +80,115 @@ export default function StartScreen() {
   };
 
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 p-5 pb-8">
-      <header className="relative -mx-5 -mt-5 h-[300px] overflow-hidden rounded-b-[2.5rem]">
-        <RouteMap variant="wide" label={`${distanceM / 1000}km 코스 미리보기`} markers={previewMarkers} />
-        <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/70 to-transparent px-5 pb-10 pt-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">Running Rival</p>
-          <h1 className="mt-2 text-4xl font-bold leading-tight tracking-tight">러닝 라이벌</h1>
-          <p className="mt-2 text-sm text-white/70">역전이 일어날 상대를 골라, 경기를 중계해 드립니다.</p>
+    <main className="mx-auto flex h-dvh w-full max-w-md flex-col gap-3 overflow-hidden p-4">
+      <header className="relative h-[26dvh] min-h-[150px] shrink-0 overflow-hidden rounded-3xl border border-white/10">
+        <RouteMap variant="banner" label={`${distanceM / 1000}km 코스 미리보기`} markers={previewMarkers} />
+        <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/70 to-transparent px-5 pb-8 pt-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">Running Rival</p>
+          <h1 className="text-3xl font-bold leading-tight tracking-tight">러닝 라이벌</h1>
         </div>
       </header>
 
-      <section aria-label="대결 설정" className="flex flex-col gap-4">
-        <div className="glass flex flex-col gap-3 p-5">
-          <h2 className="text-sm font-semibold text-white/70">대결 거리</h2>
-          <div className="flex items-center gap-3">
+      <section aria-label="대결 설정" className="glass flex shrink-0 flex-col gap-3 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-white/70">거리</h2>
+          <div className="flex items-center gap-2">
             <input
               aria-label="대결 거리(km)"
               inputMode="decimal"
               maxLength={4}
               value={distanceText}
               onChange={(event) => setDistanceText(event.target.value)}
-              className="field w-28"
+              className="field !px-2 !py-1.5 !text-xl w-20"
             />
-            <span className="text-sm text-white/70">km (0.5 단위)</span>
+            <span className="whitespace-nowrap text-xs text-white/60">km (0.5 단위)</span>
           </div>
-          {!distance.ok && (
-            <p role="alert" className="text-sm text-red-400">
-              {distance.message}
-            </p>
-          )}
         </div>
+        {!distance.ok && (
+          <p role="alert" className="text-xs text-red-400">
+            {distance.message}
+          </p>
+        )}
 
-        <div className="glass flex flex-col gap-3 p-5">
+        <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-semibold text-white/70">평소 페이스</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <input
               aria-label="분"
               inputMode="numeric"
               maxLength={2}
               value={minutes}
               onChange={(event) => setMinutes(event.target.value)}
-              className="field w-20"
+              className="field !px-2 !py-1.5 !text-xl w-14"
             />
-            <span className="text-sm text-white/70">분</span>
+            <span className="text-sm text-white/70">:</span>
             <input
               aria-label="초"
               inputMode="numeric"
               maxLength={2}
               value={seconds}
               onChange={(event) => setSeconds(event.target.value)}
-              className="field w-20"
+              className="field !px-2 !py-1.5 !text-xl w-14"
             />
-            <span className="text-sm text-white/70">초 /km</span>
+            <span className="w-14 text-xs text-white/60">/km</span>
           </div>
-          {!pace.ok && (
-            <p role="alert" className="text-sm text-red-400">
-              {pace.message}
-            </p>
-          )}
+        </div>
+        {!pace.ok && (
+          <p role="alert" className="text-xs text-red-400">
+            {pace.message}
+          </p>
+        )}
+        {bestPace !== null && (
           <button
             type="button"
-            disabled={bestPace === null}
             onClick={() => {
-              if (bestPace === null) return;
               setMinutes(String(Math.floor(bestPace / 60)));
               setSeconds(String(bestPace % 60).padStart(2, "0"));
             }}
-            className="rounded-full border border-dashed border-white/25 px-4 py-2.5 text-sm disabled:text-white/40"
+            className="-mt-1 self-end text-xs text-white/60 underline"
           >
-            {bestPace === null
-              ? "지난 기록 불러오기 (이 거리의 저장된 기록이 아직 없어요)"
-              : `지난 최고 기록 페이스 불러오기 (${formatPace(bestPace)} /km)`}
+            지난 최고 기록 페이스 불러오기 ({formatPace(bestPace)})
           </button>
-        </div>
+        )}
 
-        <div className="glass flex flex-col gap-3 p-5">
-          <h2 className="text-sm font-semibold text-white/70">중계 강도</h2>
-          <div role="radiogroup" aria-label="중계 강도" className="grid grid-cols-3 gap-2">
-            {MAIN_INTENSITIES.map((option) => (
-              <button
-                key={option}
-                type="button"
-                role="radio"
-                aria-checked={mainIntensity === option}
-                onClick={() => {
-                  setMainIntensity(option);
-                }}
-                className={choiceClass(mainIntensity === option)}
-              >
-                {INTENSITY_LABEL[option]}
-              </button>
-            ))}
-          </div>
-          <p className="text-xs leading-relaxed text-white/55">
-            최소는 출발·추월·접전·결승만, 일반은 거기에 0.3km마다 중간 상황(앞서든 뒤처지든)·절반·마지막 200m까지, 적극은 0.25km마다 중간 상황과 추월 예측·승률 변화까지 말하되, 한마디 하고 쉬었다가 다음 말을 합니다.
-          </p>
-        </div>
-
-        <div className="glass flex flex-col gap-1.5 p-5" aria-label="매칭된 상대">
-          <h2 className="text-sm font-semibold text-white/70">매칭된 상대</h2>
-          {opponent ? (
-            <>
-              <p className="flex items-center gap-2 text-xl font-bold">
-                {displayName(opponent.id)}{" "}
-                <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-medium">{OPPONENT_SOURCE_LABEL[opponent.source]}</span>
-              </p>
-              <p className="text-sm text-white/65">
-                평균 페이스 {formatPace(averagePaceSecPerKm(opponent))} /km
-                {match?.kind === "reversal"
-                  ? ` · 이 대결에서 역전이 ${match.forecast.count}번쯤 예상돼요`
-                  : ""}
-              </p>
-              {rivalRecord && <p className="text-sm">라이벌 전적 {rivalRecord}</p>}
-              <p className="text-xs text-white/55">
-                {pool.ready ? `다른 러너가 공유한 기록 ${pool.sharedCount}개가 후보에 들어 있어요` : "공유 기록을 불러오는 중…"}
-              </p>
-              {match?.kind === "closest" && (
-                <p className="text-xs text-white/55">조건에 맞는 상대가 없어 가장 가까운 기록으로 매칭했어요</p>
-              )}
-            </>
-          ) : (
-            <p className="text-sm text-white/60">{pace.ok && distance.ok ? "맞는 상대 기록이 없어요" : "거리와 페이스를 올바르게 적으면 상대가 보여요"}</p>
-          )}
+        <div role="radiogroup" aria-label="중계 강도" className="grid grid-cols-3 gap-2">
+          {MAIN_INTENSITIES.map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={mainIntensity === option}
+              onClick={() => setMainIntensity(option)}
+              className={choiceClass(mainIntensity === option)}
+            >
+              {INTENSITY_LABEL[option]}
+            </button>
+          ))}
         </div>
       </section>
 
-      <p className="text-center text-xs text-white/50">이어폰의 외부 소리 듣기 모드를 켜고 뛰는 것을 권장합니다.</p>
+      <section className="glass flex shrink-0 items-center justify-between gap-3 px-4 py-3" aria-label="매칭된 상대">
+        {opponent ? (
+          <>
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 text-lg font-bold">
+                <span className="truncate">{displayName(opponent.id)}</span>
+                <span className="shrink-0 rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-medium">{OPPONENT_SOURCE_LABEL[opponent.source]}</span>
+              </p>
+              <p className="truncate text-xs text-white/60">
+                {formatPace(averagePaceSecPerKm(opponent))} /km
+                {match?.kind === "reversal" ? ` · 역전 ${match.forecast.count}번쯤 예상` : ""}
+                {rivalRecord ? ` · 전적 ${rivalRecord}` : ""}
+              </p>
+            </div>
+            <span className="shrink-0 text-xs text-white/50">매칭된 상대</span>
+          </>
+        ) : (
+          <p className="text-sm text-white/60">{pace.ok && distance.ok ? "맞는 상대 기록이 없어요" : "거리와 페이스를 확인해 주세요"}</p>
+        )}
+      </section>
 
-      <div className="mt-auto flex flex-col gap-3 pt-2">
+      <div className="mt-auto flex shrink-0 flex-col gap-2">
         <button
           type="button"
           onClick={() => start("gps")}
@@ -222,7 +203,7 @@ export default function StartScreen() {
           disabled={!pace.ok || !distance.ok || !opponent}
           className="btn-secondary text-sm"
         >
-          데모로 체험하기 (달리지 않고 10배속)
+          데모로 체험하기 (10배속)
         </button>
       </div>
     </main>

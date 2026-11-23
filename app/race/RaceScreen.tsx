@@ -12,7 +12,7 @@ import type { Prediction } from "@/lib/engine/catchup";
 import type { RaceEvent, RaceTick } from "@/lib/engine/race-engine";
 import RouteMap, { type RouteMarker } from "../RouteMap";
 import { ACTIVE_STATUS_INTERVAL_M, createRaceEngine, STATUS_INTERVAL_M } from "@/lib/engine/race-engine";
-import { displayPercent, WIN_STAGE_LABEL } from "@/lib/engine/winprob";
+import { displayPercent } from "@/lib/engine/winprob";
 import { distanceBetweenM } from "@/lib/geo";
 import { createDemoInput, DEMO_SPEED } from "@/lib/input/demo-input";
 import { createBrowserGpsEnv, createGpsInput } from "@/lib/input/gps-input";
@@ -36,7 +36,6 @@ import {
   applyVoiceResult,
   displayText,
   formatGap,
-  formatPrediction,
   formatRaceClock,
   makeLogEntry,
   makePredictionLogEntry,
@@ -152,12 +151,12 @@ function RaceScreenInner() {
   // 실제 GPS일 때: 마지막 위치 정확도(m)와 위치 오류
   const [gpsAccuracyM, setGpsAccuracyM] = useState<number | null>(null);
   const [gpsError, setGpsError] = useState<InputError | null>(null);
-  const [gpsRejected, setGpsRejected] = useState(0); // 보정에서 걸러 낸 점의 수
+  const [, setGpsRejected] = useState(0); // 보정에서 걸러 낸 점의 수
   const [autoPaused, setAutoPaused] = useState(false); // 멈춘 것이 감지돼 레이스가 일시정지됐는가
   const [interrupted, setInterrupted] = useState(false); // 화면이 가려져 경기를 멈춘 중인가
-  const [interruptCount, setInterruptCount] = useState(0);
+  const [, setInterruptCount] = useState(0);
   const [userPaused, setUserPaused] = useState(false); // 내가 직접 일시정지를 눌렀는가
-  const [interruptedSec, setInterruptedSec] = useState(0); // 방해로 멈춘 시간(입력 시계 초)
+  const [, setInterruptedSec] = useState(0); // 방해로 멈춘 시간(입력 시계 초)
   const [confirmingEnd, setConfirmingEnd] = useState(false);
   const [, setWake] = useState<WakeStatus>("waiting");
   const wakeSupported = useWakeLockSupported();
@@ -475,7 +474,6 @@ function RaceScreenInner() {
     { fraction: trackPercent(myDistance) / 100, label: `나 ${(myDistance / 1000).toFixed(2)}km`, tone: "me", side: meAhead ? "left" : "right" },
   ];
   const gapPosition = 50 + (Math.max(-GAP_BAR_RANGE_M, Math.min(GAP_BAR_RANGE_M, gap)) / GAP_BAR_RANGE_M) * 50;
-  const predictionText = formatPrediction(tick?.prediction ?? null);
   const percent = tick?.estimate ? displayPercent(tick.estimate.probability) : null;
   const finished = tick?.finished ?? false;
 
@@ -500,73 +498,54 @@ function RaceScreenInner() {
 
   if (phase === "ready") {
     return (
-      <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 p-4">
-        <header className="pt-4">
-          <h1 className="text-3xl font-bold tracking-tight">레이스</h1>
-          <p className="mt-1 text-sm text-foreground/70">
-            {sourceLabel} · {opponent ? displayName(opponent.id) : "상대 없음"}({opponent?.source === "virtual" ? "가상 러너" : opponent?.source === "shared" ? "다른 러너 기록" : "기록"}) · {raceDistanceM / 1000}km · 내 페이스 {formatPace(settings.paceSecPerKm)}/km
-          </p>
+      <main className="mx-auto flex h-dvh w-full max-w-md flex-col gap-3 overflow-hidden p-4">
+        <header className="pt-2">
+          <h1 className="text-3xl font-bold tracking-tight">레이스 준비</h1>
         </header>
 
-        <section aria-label="준비" className="flex flex-col gap-3 glass p-4">
-          <h2 className="text-sm font-semibold">중계 강도: {INTENSITY_LABEL[intensity]}</h2>
-          <p className="text-xs text-foreground/60">
-            시작 화면에서 정한 강도입니다. 최소는 출발·추월·접전·결승만, 일반은 0.3km마다 중간 상황과 절반·마지막 200m까지, 적극은 0.25km마다 중간 상황과 추월 예측·승률 변화까지 말합니다.
+        <section aria-label="준비" className="glass flex flex-col gap-3 p-5">
+          <p className="text-2xl font-bold">
+            {opponent ? displayName(opponent.id) : "상대 없음"}
+            <span className="ml-2 text-sm font-medium text-white/60">
+              {opponent?.source === "virtual" ? "가상 러너" : opponent?.source === "shared" ? "다른 러너 기록" : "기록"}
+            </span>
           </p>
-        </section>
-
-        {settings.source === "gps" && (
-          <section aria-label="위치 안내" className="flex flex-col gap-1 glass p-4 text-sm">
-            <h2 className="font-semibold">위치 권한이 필요해요</h2>
-            <p>시작을 누르면 브라우저가 위치 사용을 물어봐요. <b>허용</b>해야 내가 달린 거리를 잴 수 있어요.</p>
-            <p className="text-xs text-foreground/60">
-              위치 좌표는 이 기기 안에서 거리를 재는 데만 쓰고, 저장하거나 서버로 보내지 않아요. 하늘이 트인 야외에서 정확해요.
-            </p>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-2xl bg-white/5 px-2 py-3">
+              <p className="text-xs text-white/55">거리</p>
+              <p className="text-xl font-bold tabular-nums">{raceDistanceM / 1000}km</p>
+            </div>
+            <div className="rounded-2xl bg-white/5 px-2 py-3">
+              <p className="text-xs text-white/55">내 페이스</p>
+              <p className="text-xl font-bold tabular-nums">{formatPace(settings.paceSecPerKm)}</p>
+            </div>
+            <div className="rounded-2xl bg-white/5 px-2 py-3">
+              <p className="text-xs text-white/55">중계</p>
+              <p className="text-xl font-bold">{INTENSITY_LABEL[intensity]}</p>
+            </div>
+          </div>
+          <p className="text-xs text-white/55">
+            {sourceLabel}
+            {settings.source === "gps" ? " · 시작하면 위치 사용을 물어봐요. 허용해 주세요" : ""}
+            {voiceSupport.speech ? "" : " · 이 기기는 음성 미지원(자막만)"}
+          </p>
+          {settings.source === "gps" && (
             <Link className="text-xs underline" href="/race" onClick={goDemo}>
-              실제로 뛰지 않고 데모로 체험하기
+              뛰지 않고 데모로 체험하기
             </Link>
-          </section>
-        )}
-
-        <section aria-label="소리 안내" className="flex flex-col gap-1 glass p-4 text-sm">
-          <p>이어폰을 끼고, 음악을 듣는다면 틀어 두세요. 이어폰의 외부 소리 듣기 모드를 켜고 뛰는 것을 권장합니다.</p>
-          <p className="text-xs text-foreground/60">
-            음성 중계: {voiceSupport.speech ? "이 기기에서 지원됩니다" : "이 기기에서는 지원되지 않습니다 (자막만 나옵니다)"}
-          </p>
-          <p className="text-xs text-foreground/60">
-            효과음: 추월·승리 때 관중 함성, 격차 10m 이내일 때 심장 박동이 깔립니다. 음원 출처는 아래 &quot;음원 출처&quot;를 참고하세요.
-          </p>
-<p className="text-xs text-foreground/60">
-            음악 위에서 들리게 하기:{" "}
-            {voiceSupport.audioSession
-              ? "멘트 동안 다른 소리를 낮춥니다"
-              : "다른 소리를 낮출 수 없는 기기라서 멘트 앞에 짧은 알림음을 넣습니다"}
-          </p>
+          )}
         </section>
 
-        <section aria-label="음원 출처" className="flex flex-col gap-1 glass p-4 text-xs text-foreground/60">
-          <h2 className="text-sm font-semibold text-foreground">음원 출처</h2>
-          <p>
-            관중 함성: Gregor Quendel, &quot;Free Crowd Cheering Sounds&quot; (CC BY 4.0) ·{" "}
-            <a className="underline" href="https://opengameart.org/content/free-crowd-cheering-sounds" target="_blank" rel="noreferrer">
-              OpenGameArt
-            </a>
-          </p>
-          <p>
-            심장 박동: bart, &quot;heartbeat sounds&quot; (CC0) ·{" "}
-            <a className="underline" href="https://opengameart.org/content/heartbeat-sounds" target="_blank" rel="noreferrer">
-              OpenGameArt
-            </a>
-          </p>
-          <p>
-            박수: Thomas Bresson, &quot;Applaudissements&quot; (CC BY 4.0) ·{" "}
-            <a className="underline" href="https://commons.wikimedia.org/wiki/File:Thomas_Bresson_-_Applaudissements.mp3" target="_blank" rel="noreferrer">
-              Wikimedia Commons
-            </a>
-          </p>
-        </section>
+        <p className="px-1 text-center text-sm text-white/60">이어폰을 끼고, 외부 소리 듣기 모드를 켜고 뛰세요.</p>
 
-        <div className="mt-auto flex gap-3">
+        <details className="px-1 text-xs text-white/50">
+          <summary className="cursor-pointer">음원 출처</summary>
+          <p className="mt-1">
+            함성 Gregor Quendel (CC BY 4.0) · 심장 박동 bart (CC0) · 박수 Thomas Bresson (CC BY 4.0, Wikimedia Commons)
+          </p>
+        </details>
+
+        <div className="mt-auto flex gap-3 pb-1">
           <Link href="/" className="btn-secondary">
             돌아가기
           </Link>
@@ -576,69 +555,114 @@ function RaceScreenInner() {
             disabled={!pool.ready || !opponent}
             className="flex-1 btn-primary disabled:opacity-40"
           >
-            {pool.ready ? "소리 켜고 시작" : "상대 불러오는 중…"}
+            {pool.ready ? "소리 켜고 시작" : "불러오는 중…"}
           </button>
         </div>
       </main>
     );
   }
 
+  // 화면 맨 위에 보여 줄 한 줄 안내: 멈춤·위치 문제가 있으면 그것을, 없으면 가장 최근 중계 자막을
+  const latest = log[0];
+  const notice = gpsError
+    ? gpsError.message
+    : userPaused && !interrupted
+      ? "일시정지 중이에요. 이어달리기를 누르면 계속됩니다"
+      : interrupted
+        ? "화면이 가려져서 경기를 멈췄어요. 돌아오면 이어집니다"
+        : autoPaused
+          ? "멈춘 것이 감지돼 일시정지 중이에요. 다시 달리면 이어집니다"
+          : settings.source === "gps" && gpsAccuracyM === null
+            ? "위치 신호를 기다리는 중…"
+            : null;
+
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 p-4">
-      <header className="pt-4">
-        <h1 className="text-3xl font-bold tracking-tight">레이스</h1>
-        <p className="mt-1 text-sm text-foreground/70">
-          {sourceLabel} · {opponent ? displayName(opponent.id) : "상대 없음"}({opponent?.source === "virtual" ? "가상 러너" : opponent?.source === "shared" ? "다른 러너 기록" : "기록"}) · {raceDistanceM / 1000}km · 내 페이스 {formatPace(settings.paceSecPerKm)}/km
-        </p>
-      </header>
-
-      {settings.source === "gps" && (
-        <section aria-label="위치 상태" className="flex flex-col gap-1 glass p-4 text-sm">
-          {gpsError ? (
-            <>
-              <p role="alert" className="text-red-400">
-                {gpsError.message}
-              </p>
-              <Link className="underline" href="/race" onClick={goDemo}>
-                데모 모드로 체험하기
-              </Link>
-            </>
-          ) : gpsAccuracyM === null ? (
-            <p className="text-foreground/70">위치 신호를 기다리는 중…</p>
-          ) : (
-            <p className="text-foreground/70">
-              위치 정확도 약 ±{Math.round(gpsAccuracyM)}m
-              {gpsRejected > 0 ? ` · 튀는 위치 ${gpsRejected}개는 걸러 냈어요` : ""}
+    <main className="mx-auto flex h-dvh w-full max-w-md flex-col gap-3 overflow-hidden p-3">
+      <section aria-label="진행 상황" className="glass relative min-h-0 flex-1 overflow-hidden !p-0">
+        <RouteMap
+          variant="compact"
+          label="코스 위 나와 상대의 위치"
+          progress={trackPercent(myDistance) / 100}
+          markers={raceMarkers}
+        />
+        <div className="absolute inset-x-0 top-0 flex items-start justify-between bg-gradient-to-b from-black/75 to-transparent p-4 pb-8">
+          <div>
+            <p className="text-[11px] font-semibold text-white/60">
+              {opponent ? displayName(opponent.id) : "상대"} 와 {raceDistanceM / 1000}km
             </p>
-          )}
-        </section>
+            <p className="text-5xl font-bold tracking-tight tabular-nums">
+              {(myDistance / 1000).toFixed(2)}
+              <span className="ml-1 text-sm font-medium text-white/60">km</span>
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-[11px] font-semibold text-white/60">시간</p>
+            <p className="text-3xl font-bold tracking-tight tabular-nums">{formatRaceClock(tick?.t ?? 0)}</p>
+          </div>
+        </div>
+      </section>
+
+      <section aria-label="나와 상대의 격차" className="glass shrink-0 px-4 py-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-xl font-bold tabular-nums">
+            {tick ? `${formatGap(gap)} ${gap >= 0 ? "내가 앞서는 중" : "상대가 앞서는 중"}` : "출발 준비 중"}
+          </p>
+          <p className="shrink-0 text-sm font-semibold tabular-nums text-white/70">
+            {percent === null ? "승률 계산 중" : `승률 ${percent}%`}
+          </p>
+        </div>
+        <div className="relative my-2.5 h-2.5 rounded-full bg-white/10" role="img" aria-label={`격차 ${formatGap(gap)}`}>
+          <div className="absolute left-1/2 top-0 h-2.5 w-px bg-white/40" />
+          <div
+            className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_14px_rgba(255,255,255,0.6)]"
+            style={{ left: `${gapPosition}%` }}
+          />
+        </div>
+        <div className="flex justify-between text-[11px] text-white/50">
+          <span>◀ 상대가 앞</span>
+          <span>내가 앞 ▶</span>
+        </div>
+      </section>
+
+      <section aria-label="중계 자막" aria-live="polite" className="glass flex h-[72px] shrink-0 items-center px-4">
+        {notice ? (
+          <p role="status" className="text-sm font-semibold text-white/85">
+            {notice}
+          </p>
+        ) : latest ? (
+          <div className="min-w-0">
+            <p className={`line-clamp-2 text-base font-semibold leading-snug ${TONE_CLASS[latest.tone]}`}>
+              <span className="mr-1.5 text-xs tabular-nums text-white/50">{formatRaceClock(latest.raceTimeSec)}</span>
+              {displayText(latest)}
+            </p>
+            {voiceNote(latest.voice) && <p className="truncate text-[11px] text-white/45">{voiceNote(latest.voice)}</p>}
+          </div>
+        ) : (
+          <p className="text-sm text-white/50">경기가 시작되면 중계가 나옵니다</p>
+        )}
+      </section>
+
+      <div className="shrink-0">{intensitySelector}</div>
+
+      {process.env.NODE_ENV === "development" && (
+        <div className="flex shrink-0 gap-2">
+          {(
+            [
+              ["overtake", "추월"],
+              ["overtaken", "추월당함"],
+              ["last200m", "마지막 200m"],
+            ] as const
+          ).map(([type, label]) => (
+            <button key={type} type="button" onClick={() => pushTestEvent(type)} className="flex-1 btn-secondary !px-2 !py-1 text-[11px]">
+              {label}
+            </button>
+          ))}
+        </div>
       )}
 
-      {userPaused && !interrupted && (
-        <p role="status" className="glass p-4 text-center text-sm font-semibold">
-          일시정지 중이에요. 이어달리기를 누르면 계속됩니다 (멈춘 시간은 기록에서 빼요)
-        </p>
-      )}
-      {interrupted && (
-        <p role="status" className="glass p-4 text-center text-sm font-semibold">
-          화면이 가려져서 경기를 멈췄어요. 돌아오면 이어집니다
-        </p>
-      )}
-      {!interrupted && interruptCount > 0 && (
-        <p role="status" className="glass p-4 text-center text-xs text-foreground/70">
-          화면이 가려진 {interruptCount}번 동안 경기를 멈췄다가 이어갔어요 (멈춘 시간 {Math.round(interruptedSec)}초는 기록에서 뺐어요)
-        </p>
-      )}
-
-      {autoPaused && (
-        <p role="status" className="glass p-4 text-center text-sm font-semibold">
-          일시정지 중 · 멈춘 것이 감지됐어요. 다시 달리면 이어집니다 (상대 기록과 중계도 멈춰 있어요)
-        </p>
-      )}
-
-      <div className="sticky top-2 z-20 flex flex-col gap-3">
+      <div className="flex shrink-0 flex-col gap-2 pb-1">
         {confirmingEnd && !finished && running && (
-          <p role="alert" className="glass p-4 text-sm">
+          <p role="alert" className="text-center text-xs text-white/70">
             끝까지 달리지 않고 나가면 결과와 전적에 반영되지 않아요. 정말 나갈까요?
           </p>
         )}
@@ -666,112 +690,6 @@ function RaceScreenInner() {
           </div>
         )}
       </div>
-
-      <section aria-label="진행 상황" className="glass relative h-[420px] overflow-hidden !p-0">
-        <RouteMap
-          label="코스 위 나와 상대의 위치"
-          progress={trackPercent(myDistance) / 100}
-          markers={raceMarkers}
-        />
-        <div className="absolute inset-x-0 top-0 flex items-start justify-between bg-gradient-to-b from-black/70 to-transparent p-5 pb-10">
-          <div>
-            <p className="text-xs font-semibold text-white/60">달린 거리</p>
-            <p className="text-5xl font-bold tracking-tight tabular-nums">
-              {(myDistance / 1000).toFixed(2)}
-              <span className="ml-1 text-base font-medium text-white/60">/ {raceDistanceM / 1000} km</span>
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs font-semibold text-white/60">경과 시간</p>
-            <p className="text-3xl font-bold tracking-tight tabular-nums">{formatRaceClock(tick?.t ?? 0)}</p>
-          </div>
-        </div>
-      </section>
-
-      <section aria-label="나와 상대의 격차" className="glass p-5">
-        <p className="text-center text-2xl font-bold tabular-nums">
-          {tick ? `${formatGap(gap)} ${gap >= 0 ? "내가 앞서는 중" : "상대가 앞서는 중"}` : "출발 준비 중"}
-        </p>
-        <div className="relative my-3 h-3 rounded-full bg-white/10" role="img" aria-label={`격차 ${formatGap(gap)}`}>
-          <div className="absolute left-1/2 top-0 h-3 w-px bg-white/40" />
-          <div
-            className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_14px_rgba(255,255,255,0.6)]"
-            style={{ left: `${gapPosition}%` }}
-          />
-        </div>
-        <div className="flex justify-between text-xs text-white/55">
-          <span>◀ 상대가 앞</span>
-          <span>내가 앞 ▶</span>
-        </div>
-      </section>
-
-      <section aria-label="예상 승률" className="glass p-4">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-sm font-semibold">예상 승률</h2>
-          <p className="text-sm font-semibold tabular-nums">
-            {percent === null ? "60초 뒤부터 계산" : `${percent}% · ${tick?.stage ? WIN_STAGE_LABEL[tick.stage] : ""}`}
-          </p>
-        </div>
-        <div className="mt-2 h-2 rounded-full bg-foreground/10">
-          <div className="h-2 rounded-full bg-foreground" style={{ width: `${percent ?? 0}%` }} />
-        </div>
-        <p className="mt-2 text-sm">
-          {predictionText ??
-            (tick && tick.t >= 60 ? "지금은 예상되는 추월이 없습니다" : "추월 예측은 60초 뒤부터 시작됩니다")}
-        </p>
-        {tick?.recentPace && (
-          <p className="mt-1 text-xs text-foreground/60">
-            최근 60초 페이스 {formatPace(tick.recentPace.paceSecPerKm)}/km
-          </p>
-        )}
-      </section>
-
-      <section aria-label="중계 강도" className="glass p-4">
-        <h2 className="mb-2 text-sm font-semibold">중계 강도</h2>
-        {intensitySelector}
-      </section>
-
-      <section aria-label="중계 자막" className="flex min-h-0 flex-1 flex-col glass p-4">
-        <h2 className="text-sm font-semibold text-white/70">중계 자막</h2>
-        <ol aria-live="polite" className="mt-2 flex max-h-56 flex-col gap-2 overflow-y-auto">
-          {log.length === 0 && <li className="text-sm text-foreground/60">경기가 시작되면 여기에 쌓입니다</li>}
-          {log.map((entry) => (
-            <li key={entry.id} className="text-sm">
-              <p className={TONE_CLASS[entry.tone]}>
-                <span className="tabular-nums text-foreground/60">{formatRaceClock(entry.raceTimeSec)}</span>{" "}
-                {displayText(entry)}
-              </p>
-              {voiceNote(entry.voice) && <p className="text-xs text-foreground/50">{voiceNote(entry.voice)}</p>}
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      {process.env.NODE_ENV === "development" && (
-        <section aria-label="이벤트 테스트 (개발 중에만 보임)" className="glass border-dashed p-4">
-          <h2 className="text-xs font-semibold text-foreground/60">이벤트 테스트 (개발 중에만 보임)</h2>
-          <div className="mt-2 flex gap-2">
-            {(
-              [
-                ["overtake", "추월"],
-                ["overtaken", "추월당함"],
-                ["last200m", "마지막 200m"],
-              ] as const
-            ).map(([type, label]) => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => pushTestEvent(type)}
-                className="flex-1 btn-secondary !px-2 !py-2 text-xs"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-
     </main>
   );
 }
