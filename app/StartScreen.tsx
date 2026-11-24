@@ -24,8 +24,8 @@ import {
 const INTENSITY_HELP: Record<Intensity, string> = {
   off: "",
   minimal: "추월·접전·결승 같은 큰 순간만 말해요",
-  normal: "큰 순간 + 1km·절반·마지막 200m, 300m마다 중간 상황",
-  active: "일반 + 200m마다 중간 상황, 추월 예상 시간, 승률 변화",
+  normal: "큰 순간 + 1km·절반·마지막 200m, 250m마다 중간 상황",
+  active: "일반 + 추월 예상 시간, 승률 변화",
 };
 
 /** 화면에서 고르는 중계 강도 (끄기는 실험용이라 따로 둔다) */

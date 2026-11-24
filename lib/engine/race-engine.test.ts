@@ -165,13 +165,13 @@ describe("접전 사건 (가짜 격차)", () => {
 });
 
 describe("끊기지 않는 중계: 출발·절반·중간 상황", () => {
-  it("1km 대결에서도 출발, 절반, 300m마다 중간 상황이 나오고 결승 직전에는 그치며, 앞서든 뒤처지든 나온다", () => {
+  it("1km 대결에서도 출발, 절반, 250m마다 중간 상황이 나오고 결승 직전에는 그치며, 앞서든 뒤처지든 나온다", () => {
     for (const rivalId of ["가상러너-01", "가상러너-09"]) {
       const { events } = runDemo(rivalId, 1000);
       expect(events[0].type).toBe("start");
       expect(events.filter((e) => e.type === "half")).toHaveLength(1);
       const statuses = events.filter((e) => e.type === "status");
-      expect(statuses.length).toBeGreaterThanOrEqual(1); // 300m (절반 500m·마지막 200m와 겹치는 자리는 건너뜀)
+      expect(statuses.length).toBeGreaterThanOrEqual(1); // 250m (절반 500m·마지막 200m와 겹치는 자리는 건너뜀)
       const finishAt = events.find((e) => e.type === "finish")!.t;
       expect(statuses[statuses.length - 1].t).toBeLessThan(finishAt);
     }
