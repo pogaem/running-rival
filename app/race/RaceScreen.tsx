@@ -483,8 +483,8 @@ function RaceScreenInner() {
           if (summary) {
             summary.raceId = Date.now();
             setFinalResult({ won: summary.won, marginSec: summary.opponentTimeSec - summary.myTimeSec });
-            // 전적과 개인 최고 기록에 반영한다 (이 기기에만 저장). 데모는 실제로 뛴 것이 아니므로 반영하지 않는다
-            if (settings.source === "gps") {
+            // 전적과 개인 최고 기록에 반영한다 (이 기기에만 저장). 데모도 똑같이 반영한다
+            {
               const outcome = recordRace(parseHistory(loadHistoryText()), {
                 opponentId: summary.opponent.id,
                 distanceM: settings.distanceM,
@@ -636,6 +636,20 @@ function RaceScreenInner() {
   const gapPosition = finalResult ? (finalResult.won ? 92 : 8) : 50 + (Math.max(-GAP_BAR_RANGE_M, Math.min(GAP_BAR_RANGE_M, gap)) / GAP_BAR_RANGE_M) * 50;
   const percent = tick?.estimate ? displayPercent(tick.estimate.probability) : null;
   const finished = tick?.finished ?? false;
+
+  // 결승선을 지나고 마지막 중계가 끝나면 결과 보기를 누르지 않아도 결과 화면으로 넘어간다
+  useEffect(() => {
+    if (!finished) return;
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      const waited = Date.now() - startedAt;
+      if ((waited >= 2500 && speakingCount.current === 0) || waited >= 20000) {
+        clearInterval(timer);
+        router.push("/result");
+      }
+    }, 300);
+    return () => clearInterval(timer);
+  }, [finished, router]);
 
   const intensitySelector = (
     <div role="radiogroup" aria-label="중계 강도" className="grid grid-cols-3 gap-2">

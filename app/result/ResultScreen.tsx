@@ -233,13 +233,7 @@ export default function ResultScreen() {
       </button>
 
       <div className="shrink-0">
-        {settings.source === "gps" ? (
-          <SharePanel key={summary.raceId ?? 0} summary={summary} />
-        ) : (
-          <p className="glass px-4 py-3 text-xs text-white/60">
-            데모로 뛴 결과는 전적·최고 기록에 넣지 않고, 공유할 수도 없어요. 실제로 뛴 기록만 남아요.
-          </p>
-        )}
+        <SharePanel key={summary.raceId ?? 0} summary={summary} />
       </div>
 
       <div className="flex shrink-0 gap-3 pb-1">
