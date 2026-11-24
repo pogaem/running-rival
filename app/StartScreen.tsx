@@ -7,7 +7,7 @@ import RouteMap, { type RouteMarker } from "./RouteMap";
 import { displayName } from "@/lib/runner-names";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { bestPaceSecPerKm, formatRivalRecord, loadHistoryText, parseHistory } from "@/lib/storage/history";
+import { bestPaceSecPerKm, formatRivalRecord, HISTORY_STORAGE_KEY, loadHistoryText, parseHistory } from "@/lib/storage/history";
 import { INTENSITY_LABEL, type Intensity } from "@/lib/output/voice-policy";
 import {
   averagePaceSecPerKm,
@@ -51,6 +51,7 @@ export default function StartScreen() {
   const [distanceText, setDistanceText] = useState(String(DEFAULT_RACE_SETTINGS.distanceM / 1000));
   const [minutes, setMinutes] = useState(String(Math.floor(DEFAULT_RACE_SETTINGS.paceSecPerKm / 60)));
   const [seconds, setSeconds] = useState(String(DEFAULT_RACE_SETTINGS.paceSecPerKm % 60).padStart(2, "0"));
+  const [confirmReset, setConfirmReset] = useState(false);
   const [mainIntensity, setMainIntensity] = useState<Intensity>(DEFAULT_RACE_SETTINGS.intensity);
 
   const pace = useMemo(() => parsePaceInput(minutes, seconds), [minutes, seconds]);
@@ -211,6 +212,37 @@ export default function StartScreen() {
           <p className="text-sm text-white/60">{pace.ok && distance.ok ? "맞는 상대 기록이 없어요" : "거리와 페이스를 확인해 주세요"}</p>
         )}
       </section>
+
+      {historyText && (
+        <div className="flex shrink-0 items-center justify-end gap-2 text-xs text-white/50">
+          {confirmReset ? (
+            <>
+              <span>이 기기의 전적·최고 기록을 모두 지울까요?</span>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem(HISTORY_STORAGE_KEY);
+                  } catch {
+                    // 지우지 못해도 앱은 그대로 쓸 수 있다
+                  }
+                  window.location.reload();
+                }}
+                className="rounded-full border border-red-400/60 px-3 py-1 font-semibold text-red-300"
+              >
+                지우기
+              </button>
+              <button type="button" onClick={() => setConfirmReset(false)} className="rounded-full border border-white/20 px-3 py-1">
+                취소
+              </button>
+            </>
+          ) : (
+            <button type="button" onClick={() => setConfirmReset(true)} className="underline">
+              내 전적·기록 지우기
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="mt-auto flex shrink-0 flex-col gap-2">
         <button
