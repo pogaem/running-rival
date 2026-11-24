@@ -24,8 +24,10 @@ import {
 
 /** 격차가 이 값(미터) 이내로 들어오면 "접전" (DESIGN.md 이벤트 표) */
 export const CLOSE_ENTER_M = 10;
-/** 접전에서 이 값(미터)보다 더 벌어져야 "벗어났다"고 본다. 10m 근처에서 자꾸 들락거리지 않게 하는 여유(초안) */
-export const CLOSE_LEAVE_M = 15;
+/** 접전을 벗어났다고 보는 격차(미터). 설계대로 접전 기준과 같은 10m다 */
+export const CLOSE_LEAVE_M = 10;
+/** 10m 근처에서 자꾸 들락거리지 않게, 10m보다 벌어진 채로 이 시간(초) 이어져야 "벗어났다"고 본다 */
+export const CLOSE_LEAVE_HOLD_SEC = 3;
 /** 결승선까지 이 거리(미터) 이하가 남으면 "마지막 200m" */
 export const LAST_STRETCH_M = 200;
 /** 중간 상황(status)을 내보내는 거리 간격(미터). 앞서든 뒤처지든 내가 이만큼 달릴 때마다 중계한다.
@@ -39,7 +41,11 @@ const STATUS_STOP_M = 40;
 const ARRIVED_TOLERANCE_M = 1e-6;
 
 /** 엔진이 내보내는 이벤트 */
-export type RaceEvent =
+export type RaceEvent = RaceEventBody & {
+  /** 이 이벤트가 난 순간의 "예상 추월까지 남은 시간(초)". 말할 만한 예측이 없으면 null */
+  etaSec?: number | null;
+};
+type RaceEventBody =
   /** 추월: 내가 상대를 10m 이상 앞서게 됨 / 추월당함: 상대가 나를 10m 이상 앞서게 됨 */
   | { type: "overtake" | "overtaken"; t: number; gapM: number }
   /** 접전: 격차가 10m 이내로 들어옴 / 벗어남 */
@@ -95,6 +101,7 @@ export function createRaceEngine(setup: RaceSetup): RaceEngine {
   const opponentFinishAt = timeToReachDistance(setup.opponent, race) ?? Infinity;
 
   let closeness: "unknown" | "close" | "apart" = "unknown";
+  let apartSinceT: number | null = null; // 10m보다 벌어진 채로 있기 시작한 시각
   let kmSent = 0;
   let last200Sent = false;
   let finishedTick: RaceTick | null = null;
@@ -120,16 +127,26 @@ export function createRaceEngine(setup: RaceSetup): RaceEngine {
       const { snapshot, event: leadEvent } = gapEngine.update(t, myDistanceM);
       if (leadEvent) events.push(leadEvent);
 
-      // 2) 접전: 처음부터 가까운 것(출발 직후)은 사건으로 세지 않고, 한 번 벌어졌다 다시 들어올 때부터 센다
+      // 2) 접전: 격차가 10m 이내면 접전이다. 출발할 때부터 붙어 있어도 접전으로 시작해 심장 박동이 울린다.
+      //    벗어남은 10m보다 벌어진 채로 CLOSE_LEAVE_HOLD_SEC초 이어질 때만 인정한다(경계에서 들락거림 방지)
       const closeGap = Math.abs(snapshot.gapM);
-      if (closeness === "unknown") {
-        closeness = closeGap <= CLOSE_ENTER_M ? "close" : "apart";
-      } else if (closeness === "apart" && closeGap <= CLOSE_ENTER_M) {
-        closeness = "close";
-        events.push({ type: "closeEnter", t, gapM: snapshot.gapM });
-      } else if (closeness === "close" && closeGap > CLOSE_LEAVE_M) {
-        closeness = "apart";
-        events.push({ type: "closeLeave", t, gapM: snapshot.gapM });
+      if (closeness !== "close") {
+        if (closeGap <= CLOSE_ENTER_M) {
+          closeness = "close";
+          apartSinceT = null;
+          events.push({ type: "closeEnter", t, gapM: snapshot.gapM });
+        } else {
+          closeness = "apart";
+        }
+      } else if (closeGap > CLOSE_LEAVE_M) {
+        apartSinceT ??= t;
+        if (t - apartSinceT >= CLOSE_LEAVE_HOLD_SEC) {
+          closeness = "apart";
+          apartSinceT = null;
+          events.push({ type: "closeLeave", t, gapM: snapshot.gapM });
+        }
+      } else {
+        apartSinceT = null;
       }
 
       // 3) 추월 예측과 예상 승률
@@ -164,6 +181,9 @@ export function createRaceEngine(setup: RaceSetup): RaceEngine {
       if (arrived) {
         events.push({ type: "finish", t, won: t < opponentFinishAt });
       }
+
+      const etaSec = prediction ? prediction.inSec : null;
+      for (const event of events) event.etaSec = etaSec;
 
       const tick: RaceTick = {
         t,

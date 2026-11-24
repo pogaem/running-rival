@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import type { Prediction } from "@/lib/engine/catchup";
 import type { RaceEvent, RaceTick } from "@/lib/engine/race-engine";
 import RouteMap, { type RouteMarker } from "../RouteMap";
-import { ACTIVE_STATUS_INTERVAL_M, createRaceEngine, STATUS_INTERVAL_M } from "@/lib/engine/race-engine";
+import { ACTIVE_STATUS_INTERVAL_M, CLOSE_ENTER_M, createRaceEngine, STATUS_INTERVAL_M } from "@/lib/engine/race-engine";
 import { displayPercent } from "@/lib/engine/winprob";
 import { distanceBetweenM } from "@/lib/geo";
 import { createDemoInput, DEMO_SPEED } from "@/lib/input/demo-input";
@@ -21,7 +21,7 @@ import { appendGapPoint, buildRaceSummary, formatMargin, serializeSummary, SUMMA
 import { createAutoPause } from "@/lib/input/auto-pause";
 import { createPositionFilter } from "@/lib/input/gps-filter";
 import type { InputError, PositionInput } from "@/lib/input/types";
-import { makeStraightTrack } from "@/lib/input/synthetic-track";
+import { makeNoisyTrack } from "@/lib/input/synthetic-track";
 import { createTrackRecorder } from "@/lib/track-recorder";
 import { useOpponentPool } from "../useOpponentPool";
 import { createInterruptionTracker } from "@/lib/input/interruption";
@@ -37,6 +37,7 @@ import {
   applyVoiceResult,
   displayText,
   formatGap,
+  formatEta,
   formatRaceClock,
   makeLogEntry,
   makePredictionLogEntry,
@@ -251,7 +252,7 @@ function RaceScreenInner() {
     if (predictionDecision.speak && prediction && speaker?.supported) {
       const id = nextLogId.current++;
       const text = book.forPrediction(prediction);
-      entries.push(makePredictionLogEntry(id, t, text, decidedAtMs, nowMs(), { state: "pending", text }));
+      entries.push(makePredictionLogEntry(id, t, text, decidedAtMs, nowMs(), { state: "pending", text }, prediction.inSec));
       speak(id, text, false);
     }
 
@@ -272,16 +273,26 @@ function RaceScreenInner() {
     const engine = createRaceEngine({ opponent, raceDistanceM });
     engineRef.current = engine;
     engine.setStatusIntervalM(intensityRef.current === "active" ? ACTIVE_STATUS_INTERVAL_M : STATUS_INTERVAL_M);
-    // 데모: 입력한 평소 페이스로 일정하게 달리는 "만든 경로"를 10배속으로 재생한다.
+    // 데모: 입력한 평소 페이스로 달리는 "만든 경로"를 10배속으로 재생한다. 실제 GPS처럼 오차(흔들림·튀는 점·끊김)를 섞어서
+    // 위치 보정과 자동 일시정지를 똑같이 거친다.
     // GPS: 폰의 실제 위치를 받는다. 둘 다 같은 모양(PositionInput)이라 아래는 똑같이 동작한다
     const input: PositionInput =
       settings.source === "gps"
         ? createGpsInput(createBrowserGpsEnv())
-        : createDemoInput(makeStraightTrack({ paceSecPerKm: settings.paceSecPerKm, distanceM: raceDistanceM }));
+        : createDemoInput(makeNoisyTrack({ paceSecPerKm: settings.paceSecPerKm, distanceM: raceDistanceM }));
     let previous: PositionSample | null = null;
     let traveled = 0; // 누적 거리. 실제 GPS는 보정(정확도 나쁜 점·순간 이동 제거, 이동 평균)을 거친 점만 더한다
-    const filter = settings.source === "gps" ? createPositionFilter() : null; // 데모 경로는 깨끗해서 보정이 필요 없다
-    const autoPause = settings.source === "gps" ? createAutoPause() : null; // 데모는 멈추지 않는다
+    let filter = createPositionFilter(); // 데모도 실제 GPS와 같은 보정을 거친다
+    const autoPause = createAutoPause();
+    let lastInterruptedSec = 0;
+    let wasAutoPaused = false;
+    // 멈췄다 돌아온 뒤 접전 상태였다면 심장 박동을 다시 켠다 (멈출 때 효과음을 모두 껐으므로)
+    const restoreHeartbeat = () => {
+      const last = latestTick.current;
+      if (last && !last.finished && Math.abs(last.snapshot.gapM) <= CLOSE_ENTER_M) {
+        sfxRef.current?.handleEvent({ type: "closeEnter", t: last.t, gapM: last.snapshot.gapM }, intensityRef.current);
+      }
+    };
     const elevation = createElevationTracker();
     const track = createTrackRecorder();
     // 전화·앱 전환으로 화면이 가려지면 경기를 멈추고, 돌아오면 이어간다 (레이스 시간·상대 기록도 같이 멈춤)
@@ -304,6 +315,7 @@ function RaceScreenInner() {
       } else if (!wantPaused && isPaused) {
         if (input.resume) input.resume();
         else interruption.show();
+        restoreHeartbeat();
       }
       isPaused = wantPaused;
       setInterrupted(screenHidden);
@@ -356,25 +368,38 @@ function RaceScreenInner() {
           setWaitingStart(false);
         }
         const rawSample: PositionSample = { ...incoming, t: incoming.t - gate.interruptedSec - startOffsetSec };
-        let sample = rawSample;
-        if (filter) {
-          const filtered = filter.push(rawSample);
-          setGpsAccuracyM(rawSample.accuracyM);
-          setGpsRejected(filter.rejected.accuracy + filter.rejected.speed);
-          if (!filtered.accepted) return; // 버린 점은 거리에도 엔진에도 넣지 않는다
-          sample = filtered.sample;
+        // 멈췄다 돌아온 첫 점: 멈춘 시간은 레이스 시간에서 빠지므로, 그동안 움직인 거리도 세지 않는다.
+        // 보정기와 기준점을 새로 시작해서, 돌아온 위치가 "순간 이동"으로 버려지거나 한꺼번에 더해지지 않게 한다
+        if (gate.interruptedSec > lastInterruptedSec) {
+          lastInterruptedSec = gate.interruptedSec;
+          filter = createPositionFilter();
+          previous = null;
         }
+        const filtered = filter.push(rawSample);
+        setGpsAccuracyM(rawSample.accuracyM);
+        setGpsRejected(filter.rejected.accuracy + filter.rejected.speed);
+        if (!filtered.accepted) return; // 버린 점은 거리에도 엔진에도 넣지 않는다
+        const sample = filtered.sample;
         if (previous) traveled += distanceBetweenM(previous, sample);
         previous = sample;
 
         // 멈춘 동안은 레이스 시간이 흐르지 않는다: 상대 기록도 멈추고, 엔진을 돌리지 않으니 중계도 나가지 않는다
-        let raceTimeSec = sample.t;
-        if (autoPause) {
-          const pause = autoPause.update(sample.t, traveled);
-          setAutoPaused(pause.paused);
-          if (pause.paused) return;
-          raceTimeSec = pause.raceTimeSec;
+        const pause = autoPause.update(sample.t, traveled);
+        setAutoPaused(pause.paused);
+        if (pause.paused) {
+          // 멈춘 동안은 음성과 효과음(심장 박동)도 멈춘다
+          if (!wasAutoPaused) {
+            speakerRef.current?.cancel();
+            sfxRef.current?.stopAll();
+          }
+          wasAutoPaused = true;
+          return;
         }
+        if (wasAutoPaused) {
+          wasAutoPaused = false;
+          restoreHeartbeat();
+        }
+        const raceTimeSec = pause.raceTimeSec;
 
         elevation.update(sample.ele);
         track.add(raceTimeSec, traveled);
@@ -422,12 +447,10 @@ function RaceScreenInner() {
         latestTick.current = result;
         setTick(result);
         outputMoments(result.events, result.prediction, raceTimeSec, decidedAtMs);
-        if (settings.source === "gps") {
-          setGpsError(null);
-          if (result.finished) {
-            input.stop(); // 결승선을 지나면 위치 추적을 끈다
-            setRunning(false);
-          }
+        if (settings.source === "gps") setGpsError(null);
+        if (result.finished) {
+          input.stop(); // 결승선을 지나면 위치 추적(또는 데모 재생)을 끈다
+          setRunning(false);
         }
       },
       onEnd: () => setRunning(false),
@@ -747,7 +770,11 @@ function RaceScreenInner() {
               <span className="mr-1.5 text-xs tabular-nums text-white/50">{formatRaceClock(latest.raceTimeSec)}</span>
               {displayText(latest)}
             </p>
-            {voiceNote(latest.voice) && <p className="truncate text-[11px] text-white/45">{voiceNote(latest.voice)}</p>}
+            {(formatEta(latest.etaSec) || voiceNote(latest.voice)) && (
+              <p className="truncate text-[11px] text-white/45">
+                {[formatEta(latest.etaSec), voiceNote(latest.voice)].filter(Boolean).join(" · ")}
+              </p>
+            )}
           </div>
         ) : (
           <p className="text-sm text-white/50">경기가 시작되면 중계가 나옵니다</p>

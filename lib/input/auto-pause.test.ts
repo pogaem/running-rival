@@ -27,13 +27,13 @@ describe("createAutoPause", () => {
     expect(states[60].raceTimeSec).toBe(60);
   });
 
-  it("멈추면 5초쯤 뒤에 멈춤으로 바뀌고, 그동안 레이스 시간이 멈춘다", () => {
+  it("멈추면 2~3초쯤 뒤에 멈춤으로 바뀌고, 그동안 레이스 시간이 멈춘다", () => {
     const states = drive(createAutoPause(), 60, (t) => (t <= 20 ? 3 : 0));
-    expect(states[22].paused).toBe(false); // 멈춘 지 2초: 아직 모른다
-    expect(states[26].paused).toBe(true); // 멈춘 지 5~6초
+    expect(states[20].paused).toBe(false); // 막 멈춘 때: 아직 모른다
+    expect(states[24].paused).toBe(true); // 멈춘 지 2~4초
     // 멈춘 동안 레이스 시간은 늘지 않는다
     expect(states[50].raceTimeSec).toBe(states[40].raceTimeSec);
-    expect(states[60].raceTimeSec).toBeLessThanOrEqual(26); // 멈춘 걸 알아채기까지 4~5초는 흐른다
+    expect(states[60].raceTimeSec).toBeLessThanOrEqual(23); // 멈춘 걸 알아채기까지 2~3초만 흐른다
   });
 
   it("다시 달리면 곧 재개하고 이어서 레이스 시간이 흐른다", () => {

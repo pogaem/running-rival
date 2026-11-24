@@ -21,16 +21,13 @@ export const INTENSITY_LABEL: Record<Intensity, string> = {
 export const DEFAULT_INTENSITY: Intensity = "normal";
 
 /**
- * 멘트 사이의 최소 간격(실제 시계 기준 초). PRD 초안은 25초였다.
- * 데모는 10배속이라 레이스 시간으로는 이 값의 10배가 지나야 같은 느낌이 된다 → timeScale 옵션으로 곱한다.
+ * 멘트 사이의 최소 간격(실제로 듣는 시간 기준 초). 음성은 실제 시간이 걸려 읽히므로 "실제 시계 4초"가 기준이다.
+ * 레이스 시간은 데모(10배속)에서 10배 빨리 흐르므로 timeScale(10)을 곱해 같은 4초로 맞춘다. 실제 GPS는 1배라 그대로 4초.
  */
 export const VOICE_MIN_GAP_SEC = 4;
 
 /** 적극도 같은 간격. 0.25km마다 중간 상황이 나오는데 간격이 더 길면(빠른 페이스·데모에서) 말이 계속 건너뛰어진다 */
 export const ACTIVE_VOICE_MIN_GAP_SEC = 4;
-
-/** 숫자 없이 "따라붙고 있습니다"만 말하는 예측은 이만큼(초) 간격을 두고 말한다 (같은 말이 반복되지 않게. 초안) */
-export const VAGUE_PREDICTION_GAP_SEC = 60;
 
 /** 간격을 무시하고 바로 말하는 이벤트 (PRD: 추월·역전·결승) */
 const PRIORITY_EVENTS: ReadonlySet<RaceEvent["type"]> = new Set(["overtake", "overtaken", "finish"]);
@@ -84,7 +81,7 @@ export type VoicePolicy = {
   decideEvent(event: RaceEvent): VoiceDecision;
   /**
    * 지금의 추월 예측을 말할지 정한다. 적극에서만 말하고, 최소 간격을 지킨다.
-   * 숫자로 말하는 예측이 아니면 "따라붙고 있습니다" 같은 말이 반복되지 않게 더 긴 간격을 둔다.
+   * 숫자로 말해도 되는 예측만 말한다("따라붙고 있습니다" 같은 숫자 없는 예측은 말하지 않는다).
    */
   decidePrediction(t: number, prediction: Prediction | null): VoiceDecision;
 };
@@ -101,7 +98,6 @@ export function createVoicePolicy(options: VoicePolicyOptions = {}): VoicePolicy
   if (options.minGapSec !== undefined && !(options.minGapSec >= 0)) throw new Error("최소 간격은 0 이상이어야 한다");
   let intensity: Intensity = options.intensity ?? DEFAULT_INTENSITY;
   let lastSpokenAt: number | null = null;
-  let lastVagueAt: number | null = null;
 
   // 간격을 직접 정하지 않으면 강도에 맞는 기본 간격을 쓴다
   const minGap = () => options.minGapSec ??
@@ -128,11 +124,9 @@ export function createVoicePolicy(options: VoicePolicyOptions = {}): VoicePolicy
     decidePrediction(t, prediction) {
       if (intensity === "off") return { speak: false, reason: "off" };
       if (!prediction || !intensityAllowsPrediction(intensity)) return { speak: false, reason: "intensity" };
+      // 설계: 숫자로 말해도 되는 조건(예상 시점 60초 이내 + 페이스 흔들림 작음)일 때만 말한다. 아니면 화면 "지금 예상"에만 보인다
+      if (prediction.speak !== "number") return { speak: false, reason: "intensity" };
       if (!gapOk(t)) return { speak: false, reason: "gap" };
-      if (prediction.speak === "vague") {
-        if (lastVagueAt !== null && t - lastVagueAt < VAGUE_PREDICTION_GAP_SEC * (options.timeScale ?? 1)) return { speak: false, reason: "gap" };
-        lastVagueAt = t;
-      }
       lastSpokenAt = t;
       return { speak: true, priority: false };
     },

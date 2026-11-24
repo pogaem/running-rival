@@ -109,7 +109,15 @@ export type LogEntry = Subtitle & {
   delayMs: number;
   /** 음성 상태 */
   voice: VoiceStatus;
+  /** 이때 예상한 "추월이 일어날 때까지 남은 시간(초)". 말할 만한 예측이 없으면 null */
+  etaSec: number | null;
 };
+
+/** 화면에 작게 보여 줄 "예상 추월까지 남은 시간" 글. 없으면 null */
+export function formatEta(etaSec: number | null | undefined): string | null {
+  if (etaSec === null || etaSec === undefined || !Number.isFinite(etaSec)) return null;
+  return `추월 예상까지 약 ${Math.max(1, Math.round(etaSec))}초`;
+}
 
 /** 이벤트로 로그 한 줄을 만든다. 음성 상태를 모르면 "말하지 않음(끄기)"으로 둔다 */
 export function makeLogEntry(
@@ -127,6 +135,7 @@ export function makeLogEntry(
     outputAtMs,
     delayMs: outputAtMs - decidedAtMs,
     voice,
+    etaSec: event.etaSec ?? null,
   };
 }
 
@@ -138,6 +147,7 @@ export function makePredictionLogEntry(
   decidedAtMs: number,
   outputAtMs: number,
   voice: VoiceStatus,
+  etaSec: number | null = null,
 ): LogEntry {
   return {
     kind: "prediction",
@@ -149,6 +159,7 @@ export function makePredictionLogEntry(
     outputAtMs,
     delayMs: outputAtMs - decidedAtMs,
     voice,
+    etaSec,
   };
 }
 

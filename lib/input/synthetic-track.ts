@@ -71,3 +71,75 @@ export function makeDemoTrack(): PositionSample[] {
     elevationAt: (distance) => 20 + 4 * Math.sin((2 * Math.PI * distance) / 1250),
   });
 }
+
+/** 매번 같은 값을 내는 간단한 난수 (시험과 데모가 늘 같은 오차를 보게 한다) */
+function seededRandom(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export type NoisyTrackOptions = StraightTrackOptions & {
+  /** 난수 씨앗. 같으면 늘 같은 오차가 나온다 */
+  seed?: number;
+  /** 도착한 뒤에도 이만큼(초) 더 달린다. 위치 보정(이동 평균)이 조금 늦게 따라오므로 도착선을 확실히 넘게 한다. 기본 15 */
+  extraSec?: number;
+};
+
+/**
+ * 실제 GPS처럼 오차를 섞은 시험 경로. 같은 페이스로 달리되
+ *  - 모든 점이 위아래 1m 안쪽으로 흔들리고,
+ *  - 가끔 정확도가 나쁜 점(오차 반경 60m)이 끼고,
+ *  - 아주 가끔 80m쯤 튀는 점이 끼고,
+ *  - 한두 번은 몇 초 동안 점이 끊긴다.
+ * 위치 보정(gps-filter)이 이것들을 걸러 내는지 책상에서 보게 해 준다. 멈춤은 넣지 않는다.
+ */
+export function makeNoisyTrack(options: NoisyTrackOptions): PositionSample[] {
+  const { seed = 7, extraSec = 15, ...straight } = options;
+  const random = seededRandom(seed);
+  const startLat = straight.startLat ?? 37.5;
+  const degreesLonPerMeter = 1 / (METERS_PER_DEGREE_LAT * Math.cos((startLat * Math.PI) / 180));
+  const degreesLatPerMeter = 1 / METERS_PER_DEGREE_LAT;
+  const totalSeconds = (straight.distanceM / 1000) * straight.paceSecPerKm;
+
+  // 도착 뒤에도 같은 페이스로 조금 더 달리는 경로를 만든 뒤 오차를 섞는다
+  const base = makeStraightTrack({
+    ...straight,
+    distanceM: straight.distanceM + (extraSec / straight.paceSecPerKm) * 1000,
+  });
+
+  const out: PositionSample[] = [];
+  let dropUntil = -1;
+  let nextDropAt = 40 + random() * 60; // 첫 끊김은 40~100초 사이
+  base.forEach((sample, index) => {
+    if (index === 0) {
+      out.push(sample); // 첫 점은 깨끗하게 (출발 기준)
+      return;
+    }
+    if (sample.t >= nextDropAt && dropUntil < 0 && sample.t < totalSeconds - 10) {
+      dropUntil = sample.t + 4 + random() * 2; // 4~6초 끊김
+      nextDropAt = sample.t + 80 + random() * 80;
+    }
+    if (sample.t < dropUntil) return;
+    dropUntil = -1;
+
+    const jitterM = (random() - 0.5) * 2; // ±1m
+    const roll = random();
+    let accuracyM = sample.accuracyM;
+    let offsetM = jitterM;
+    if (roll < 0.03) accuracyM = 60; // 정확도 나쁜 점
+    else if (roll < 0.04) offsetM += random() < 0.5 ? 80 : -80; // 튀는 점
+    out.push({
+      ...sample,
+      accuracyM,
+      lon: sample.lon + offsetM * degreesLonPerMeter,
+      lat: sample.lat + (random() - 0.5) * 2 * degreesLatPerMeter,
+    });
+  });
+  return out;
+}

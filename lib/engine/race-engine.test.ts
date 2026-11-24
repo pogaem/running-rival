@@ -4,7 +4,8 @@ import { distanceBetweenM } from "../geo";
 import { makeDemoTrack } from "../input/synthetic-track";
 import { distanceAtTime, type RunRecord } from "../record";
 import { virtualRunners } from "../runners";
-import { CLOSE_ENTER_M, CLOSE_LEAVE_M, createRaceEngine, type RaceEvent, type RaceTick } from "./race-engine";
+import { CLOSE_ENTER_M, CLOSE_LEAVE_M,
+  CLOSE_LEAVE_HOLD_SEC, createRaceEngine, type RaceEvent, type RaceTick } from "./race-engine";
 import type { RaceSetup } from "./gap";
 
 /** 데모 경로를 1초씩 엔진에 넣어, 끝날 때까지(또는 결승선 통과까지)의 결과를 모은다 */
@@ -30,8 +31,9 @@ const typesOf = (events: RaceEvent[], wanted: RaceEvent["type"][]) =>
 describe("데모 경로 vs 가상러너-03 (발표 시연 흐름)", () => {
   const { ticks, events } = runDemo("가상러너-03");
 
-  it("사건이 이 순서로 나온다: 벌어짐 → 접전 → 추월 → 벌어짐 → 마지막 200m → 결승", () => {
+  it("사건이 이 순서로 나온다: 출발부터 접전 → 벌어짐 → 접전 → 추월 → 벌어짐 → 마지막 200m → 결승", () => {
     expect(typesOf(events, ["closeLeave", "closeEnter", "overtake", "overtaken", "last200m", "finish"])).toEqual([
+      "closeEnter",
       "closeLeave",
       "closeEnter",
       "overtake",
@@ -132,24 +134,33 @@ describe("접전 사건 (가짜 격차)", () => {
     return events.filter((e) => e.type === "closeEnter" || e.type === "closeLeave");
   }
 
-  it("기준은 10m 안으로 들어올 때, 15m를 넘어 벌어질 때이다", () => {
+  it("기준은 10m 안으로 들어올 때, 10m보다 벌어진 채 3초 이어질 때이다", () => {
     expect(CLOSE_ENTER_M).toBe(10);
-    expect(CLOSE_LEAVE_M).toBe(15);
+    expect(CLOSE_LEAVE_M).toBe(10);
+    expect(CLOSE_LEAVE_HOLD_SEC).toBe(3);
   });
 
-  it("벌어져 있다가 10m 이내로 들어오면 접전 사건, 15m를 넘으면 벗어남 사건이다", () => {
-    const events = closeEvents([30, 8, 12, 14, 16, 12, 9]);
+  it("벌어져 있다가 10m 이내로 들어오면 접전 사건, 10m 밖에서 3초 이어지면 벗어남 사건이다", () => {
+    const events = closeEvents([30, 8, 12, 14, 16, 18, 9]);
     expect(events.map((e) => e.type)).toEqual(["closeEnter", "closeLeave", "closeEnter"]);
-    expect(events.map((e) => e.t)).toEqual([101, 104, 106]);
+    expect(events.map((e) => e.t)).toEqual([101, 105, 106]);
   });
 
-  it("출발 직후처럼 처음부터 가까운 것은 사건이 아니고, 벌어질 때부터 센다", () => {
-    const events = closeEvents([0, 5, 9, 20]);
-    expect(events.map((e) => e.type)).toEqual(["closeLeave"]);
+  it("출발할 때부터 붙어 있으면 바로 접전으로 시작한다 (심장 박동이 울린다)", () => {
+    const events = closeEvents([0, 5, 9, 20, 20, 20, 20]);
+    expect(events.map((e) => e.type)).toEqual(["closeEnter", "closeLeave"]);
+    expect(events[0].t).toBe(100);
   });
 
-  it("10~15m 사이를 오르내리는 동안에는 사건이 나지 않는다", () => {
-    expect(closeEvents([30, 8, 12, 14, 11, 13, 9, 14])).toHaveLength(1); // 처음 들어온 것 하나만
+  it("10m 경계에서 잠깐 벗어났다 돌아오는 동안에는 벗어남 사건이 나지 않는다", () => {
+    expect(closeEvents([30, 8, 12, 14, 9, 13, 9, 14])).toHaveLength(1); // 처음 들어온 것 하나만
+  });
+
+  it("이벤트에는 예상 추월까지 남은 시간(etaSec) 칸이 있고, 예측이 없으면 null이다", () => {
+    const engine = createRaceEngine(SETUP);
+    const first = engine.update(100, distanceAtTime(OPPONENT, 100) + 50).events;
+    expect(first.length).toBeGreaterThan(0);
+    for (const event of first) expect(event.etaSec).toBeNull();
   });
 });
 

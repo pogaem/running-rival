@@ -8,7 +8,6 @@ import {
   intensityAllows,
   intensityAllowsPrediction,
   isPriorityEvent,
-  VAGUE_PREDICTION_GAP_SEC,
   VOICE_MIN_GAP_SEC,
   ACTIVE_VOICE_MIN_GAP_SEC,
   type Intensity,
@@ -183,11 +182,12 @@ describe("createVoicePolicy · 추월 예측", () => {
     expect(policy.decidePrediction(120, prediction("number")).speak).toBe(true);
   });
 
-  it("숫자 없는 예측('따라붙고 있습니다')은 더 긴 간격(60초)을 둔다", () => {
+  it("숫자로 말해도 되는 조건이 아닌 예측('따라붙고 있습니다')은 말하지 않는다", () => {
     const policy = createVoicePolicy({ intensity: "active" });
-    expect(policy.decidePrediction(100, prediction("vague")).speak).toBe(true);
-    expect(policy.decidePrediction(130, prediction("vague"))).toEqual({ speak: false, reason: "gap" });
-    expect(policy.decidePrediction(100 + VAGUE_PREDICTION_GAP_SEC, prediction("vague")).speak).toBe(true);
+    expect(policy.decidePrediction(100, prediction("vague"))).toEqual({ speak: false, reason: "intensity" });
+    expect(policy.decidePrediction(500, prediction("vague"))).toEqual({ speak: false, reason: "intensity" });
+    // 말하지 않았으니 다음 숫자 예측은 간격에 걸리지 않는다
+    expect(policy.decidePrediction(101, prediction("number")).speak).toBe(true);
   });
 
   it("예측도 일반 멘트와 같은 간격 규칙을 함께 쓴다", () => {
