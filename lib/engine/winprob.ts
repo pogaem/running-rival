@@ -24,6 +24,8 @@ export const ADVANTAGE_MIN = 0.7;
 export const DISADVANTAGE_MAX = 0.3;
 /** 단계가 자꾸 바뀌지 않게 하는 여유 폭(초안). 우세에서 내려오려면 70%보다 5%p 더 내려가야 한다 */
 export const STAGE_HYSTERESIS = 0.05;
+/** 새 단계가 이 시간(초) 동안 이어져야 "단계가 바뀌었다"고 알린다(초안). GPS 오차로 페이스가 출렁여도 자막이 쏟아지지 않게 한다 */
+export const STAGE_HOLD_SEC = 10;
 
 /** 표준정규분포의 누적확률 Φ(z): z 이하의 값이 나올 확률 */
 export function normalCdf(z: number): number {
@@ -157,9 +159,11 @@ export type WinStageTracker = {
  * 단계가 바뀌는 것을 따라가는 도구. 기준 근처에서 승률이 조금씩 오르내려도 단계가 자꾸 바뀌지 않도록
  * 현재 단계에서 벗어날 때는 기준보다 hysteresis만큼 더 가야 바뀐 것으로 본다.
  */
-export function createWinStageTracker(hysteresis: number = STAGE_HYSTERESIS): WinStageTracker {
+export function createWinStageTracker(hysteresis: number = STAGE_HYSTERESIS, holdSec: number = 0): WinStageTracker {
   if (!(hysteresis >= 0)) throw new Error("여유 폭은 0 이상이어야 한다");
+  if (!(holdSec >= 0)) throw new Error("유지 시간은 0 이상이어야 한다");
   let stage: WinStage | null = null;
+  let candidate: { stage: WinStage; sinceT: number } | null = null; // 바뀔 후보 단계와 그것이 처음 나온 시각
 
   const next = (current: WinStage, p: number): WinStage => {
     if (current === "advantage") {
@@ -181,7 +185,14 @@ export function createWinStageTracker(hysteresis: number = STAGE_HYSTERESIS): Wi
         return { stage, change: null };
       }
       const nextStage = next(stage, probability);
-      if (nextStage === stage) return { stage, change: null };
+      if (nextStage === stage) {
+        candidate = null;
+        return { stage, change: null };
+      }
+      // 다른 단계가 나와도 holdSec 동안 같은 후보가 이어질 때만 바뀐 것으로 인정한다
+      if (!candidate || candidate.stage !== nextStage) candidate = { stage: nextStage, sinceT: t };
+      if (t - candidate.sinceT < holdSec) return { stage, change: null };
+      candidate = null;
       const change: WinStageChange = { t, from: stage, to: nextStage, probability };
       stage = nextStage;
       return { stage, change };
@@ -206,7 +217,7 @@ export type WinTracker = {
 /** 예상 승률 계산과 단계 변화 추적을 한 번에 묶은 도구 */
 export function createWinTracker(setup: RaceSetup, options: WinOptions = {}): WinTracker {
   assertRaceSetup(setup);
-  const stageTracker = createWinStageTracker();
+  const stageTracker = createWinStageTracker(STAGE_HYSTERESIS, STAGE_HOLD_SEC);
 
   return {
     update(t, myDistanceM, recentPace) {

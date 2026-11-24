@@ -272,3 +272,25 @@ describe("데모 경로의 레이스에서 예상 승률 (예측 엔진과 함�
     expect(results.get(1600)!.estimate!.probability).toBe(1); // 내가 먼저 도착
   });
 });
+
+describe("createWinStageTracker 유지 시간", () => {
+  it("다른 단계가 잠깐 나왔다 돌아오면 바뀐 것으로 알리지 않는다", () => {
+    const tracker = createWinStageTracker(0.05, 10);
+    tracker.update(0, 0.5);
+    for (let t = 1; t <= 30; t++) {
+      expect(tracker.update(t, t % 2 === 0 ? 0.1 : 0.5).change).toBeNull();
+    }
+  });
+
+  it("새 단계가 유지 시간 동안 이어지면 그때 한 번 알린다", () => {
+    const tracker = createWinStageTracker(0.05, 10);
+    tracker.update(0, 0.5);
+    const changes = [];
+    for (let t = 1; t <= 20; t++) {
+      const { change } = tracker.update(t, 0.1);
+      if (change) changes.push(change);
+    }
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({ from: "close", to: "disadvantage", t: 11 });
+  });
+});
