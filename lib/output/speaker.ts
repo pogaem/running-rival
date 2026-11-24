@@ -84,6 +84,8 @@ export type SpeakResult =
 export type SpeakOptions = {
   /** 급한 멘트: 지금 읽던 것을 끊고 바로 읽는다 */
   priority?: boolean;
+  /** 읽기가 끝났거나 실패했을 때 부른다(효과음 소리를 다시 키우는 데 쓴다) */
+  onEnd?: () => void;
 };
 
 export type Speaker = {
@@ -166,9 +168,13 @@ export function createSpeaker(env: SpeakerEnv): Speaker {
           resolve(result);
         };
         utterance.onstart = () => settle({ status: "started", startedAtMs: env.now(), ducked, beeped });
-        utterance.onend = () => restoreSession?.();
+        utterance.onend = () => {
+          restoreSession?.();
+          options.onEnd?.();
+        };
         utterance.onerror = (event) => {
           restoreSession?.();
+          options.onEnd?.();
           settle({ status: "error", message: event?.error ?? "음성 읽기 오류" });
         };
         void env.wait(START_TIMEOUT_MS).then(() => settle({ status: "error", message: "읽기 시작 신호가 오지 않았다" }));
@@ -199,19 +205,8 @@ export function createBrowserSpeakerEnv(): SpeakerEnv {
     speech: speech as unknown as SpeechLike | null,
     makeUtterance: (text) => new SpeechSynthesisUtterance(text) as unknown as UtteranceLike,
     audioSession,
-    playBeep: getSharedAudioContext()
-      ? () => {
-          const ctx = getContext();
-          if (!ctx) return;
-          const oscillator = ctx.createOscillator();
-          const gain = ctx.createGain();
-          oscillator.frequency.value = BEEP_FREQUENCY_HZ;
-          gain.gain.value = Math.min(BEEP_GAIN, VOICE_VOLUME_CAP);
-          oscillator.connect(gain).connect(ctx.destination);
-          oscillator.start();
-          oscillator.stop(ctx.currentTime + BEEP_DURATION_SEC);
-        }
-      : null,
+    // 알림음은 쓰지 않는다: 중계가 나갈 때는 다른 소리(효과음)를 작게 낮추는 방식으로 대신한다
+    playBeep: null,
     unlock: () => {
       // 브라우저는 사용자가 누르기 전에는 소리를 막는다. 눌렀을 때 소리 장치를 깨워 둔다
       void getContext()?.resume();

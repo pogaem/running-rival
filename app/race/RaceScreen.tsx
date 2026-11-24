@@ -219,6 +219,7 @@ function RaceScreenInner() {
   const speakerRef = useRef<Speaker | null>(null);
   /** 지난 대결 한마디. 출발 중계 때 대신 말한다 */
   const introRef = useRef<string | null>(null);
+  const speakingCount = useRef(0); // 지금 읽는 중인 멘트 수(효과음을 낮추는 동안)
   const policyRef = useRef<VoicePolicy | null>(null);
   const sfxRef = useRef<Sfx | null>(null);
   const pauseControlRef = useRef<{ setPaused(paused: boolean): void; startNow(): void } | null>(null);
@@ -235,9 +236,26 @@ function RaceScreenInner() {
 
     const entries: LogEntry[] = [];
     const speak = (id: number, text: string, priority: boolean) => {
-      void speaker?.speak(text, { priority }).then((result) => {
-        setLog((current) => applyVoiceResult(current, id, result));
-      });
+      // 중계가 나가는 동안 효과음(심장 박동·함성)은 작게 낮춘다. 멘트가 겹치거나 끊겨도 마지막 멘트가 끝날 때만 되돌린다
+      let counted = false;
+      void speaker
+        ?.speak(text, {
+          priority,
+          onEnd: () => {
+            if (!counted) return;
+            counted = false;
+            speakingCount.current = Math.max(0, speakingCount.current - 1);
+            if (speakingCount.current === 0) sfxRef.current?.setDucked(false);
+          },
+        })
+        .then((result) => {
+          if (result.status === "started") {
+            counted = true;
+            speakingCount.current += 1;
+            sfxRef.current?.setDucked(true);
+          }
+          setLog((current) => applyVoiceResult(current, id, result));
+        });
     };
 
     const hasStart = events.some((event) => event.type === "start");

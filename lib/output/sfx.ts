@@ -35,6 +35,8 @@ export const CHEER_PLAY_SEC = 6;
 export const CHEER_FADE_SEC = 1.2;
 /** 심장 박동을 멈출 때 서서히 줄이는 시간(초) */
 export const HEARTBEAT_FADE_SEC = 0.4;
+/** 중계가 나가는 동안 효과음에 곱하는 크기(초안). 1이면 그대로, 작을수록 더 낮춘다 */
+export const SFX_DUCK_LEVEL = 0.25;
 
 /** 이벤트에 대해 효과음이 할 일 */
 export type SfxAction = "cheer" | "heartbeatOn" | "heartbeatOff" | null;
@@ -73,6 +75,8 @@ export type SfxEnv = {
   load: (name: SfxName) => Promise<unknown>;
   /** 불러온 소리를 튼다. durationSec이 있으면 그 시간 뒤 서서히 줄이며 끝낸다 */
   play: (buffer: unknown, options: { volume: number; loop: boolean; durationSec?: number; fadeSec?: number }) => SfxHandle;
+  /** 중계가 나가는 동안 효과음 전체를 작게(true) 하거나 원래대로(false) 한다 */
+  setDucked?: (ducked: boolean) => void;
 };
 
 export type Sfx = {
@@ -82,6 +86,8 @@ export type Sfx = {
   handleEvent(event: RaceEvent, intensity: Intensity): SfxAction;
   /** 심장 박동이 지금 울리는 중인가 */
   readonly heartbeatPlaying: boolean;
+  /** 중계 멘트가 나가는 동안 효과음을 작게 낮춘다(true) / 원래 크기로 되돌린다(false) */
+  setDucked(ducked: boolean): void;
   /** 모든 효과음을 멈춘다 */
   stopAll(): void;
   /** 심장 박동만 멈춘다(함성·박수는 그대로 둔다) */
@@ -171,7 +177,16 @@ export function createSfx(env: SfxEnv | null): Sfx {
       stopHeartbeat(HEARTBEAT_FADE_SEC);
     },
 
+    setDucked(ducked) {
+      try {
+        env?.setDucked?.(ducked);
+      } catch {
+        // 소리를 못 낮춰도 중계는 계속된다
+      }
+    },
+
     stopAll() {
+      env?.setDucked?.(false);
       stopHeartbeat(0.1);
       cheer?.stop(0.1);
       cheer = null;
@@ -215,7 +230,25 @@ export function createBrowserSfxEnv(): SfxEnv | null {
     return buffer;
   };
 
+  // 모든 효과음이 지나가는 공통 볼륨: 중계 멘트 동안 이 값을 낮춘다
+  let master: GainNode | null = null;
+  const getMaster = () => {
+    const ctx = getContext();
+    if (!master) {
+      master = ctx.createGain();
+      master.connect(ctx.destination);
+    }
+    return master;
+  };
+
   return {
+    setDucked(ducked) {
+      const node = getMaster();
+      const now = getContext().currentTime;
+      node.gain.cancelScheduledValues(now);
+      node.gain.setValueAtTime(node.gain.value, now);
+      node.gain.linearRampToValueAtTime(ducked ? SFX_DUCK_LEVEL : 1, now + 0.15);
+    },
     async load(name) {
       if (name === "applause") {
         try {
@@ -239,7 +272,7 @@ export function createBrowserSfxEnv(): SfxEnv | null {
       source.loop = loop;
       const gain = ctx.createGain();
       gain.gain.value = clamp(volume);
-      source.connect(gain).connect(ctx.destination);
+      source.connect(gain).connect(getMaster());
       source.start();
 
       let stopped = false;

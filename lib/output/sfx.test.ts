@@ -192,3 +192,19 @@ describe("결승선에서 심장 박동 끄기", () => {
     expect(sfx.heartbeatPlaying).toBe(false);
   });
 });
+
+describe("중계 동안 효과음 낮추기", () => {
+  it("setDucked를 환경에 그대로 전한다", () => {
+    const calls: boolean[] = [];
+    const { env } = makeEnv();
+    const sfx = createSfx({ ...env, setDucked: (d) => calls.push(d) });
+    sfx.setDucked(true);
+    sfx.setDucked(false);
+    expect(calls).toEqual([true, false]);
+  });
+
+  it("낮추는 기능이 없는 환경에서도 오류 없이 지나간다", () => {
+    const { env } = makeEnv();
+    expect(() => createSfx(env).setDucked(true)).not.toThrow();
+  });
+});
