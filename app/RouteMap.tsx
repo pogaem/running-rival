@@ -24,7 +24,7 @@ export function courseShapeFor(distanceM: number | undefined): CourseShape {
 }
 
 /** 세로로 긴 레이스 지도는 가로가 잘려 보이므로 코스를 가운데로 모은다 */
-const X_SCALE: Record<RouteVariant, number> = { banner: 1, compact: 0.62, wide: 1, tall: 1 };
+const X_SCALE: Record<RouteVariant, number> = { banner: 1, compact: 0.62, wide: 1, tall: 0.78 };
 
 function buildRoute(h: number, top: number, shape: CourseShape, xScale = 1): { x: number; y: number }[] {
   return Array.from({ length: STEPS + 1 }, (_, i) => {
@@ -195,8 +195,14 @@ export default function RouteMap({
           );
         }
         const width = Math.max(34, marker.label.length * 7.2 + 16);
-        const right = (marker.side ?? "right") === "right";
-        const x = right ? Math.min(p.x + 12, W - width - 24) : Math.max(p.x - 12 - width, 24);
+        // 좁은 화면에서는 양옆이 잘려 보이므로, 세로로 긴 지도는 이름표를 안쪽으로 모은다
+        const margin = variant === "tall" || variant === "compact" ? 50 : 24;
+        // 한쪽에 자리가 모자라 점을 덮게 되면 반대쪽으로 옮긴다
+        const wantsRight = (marker.side ?? "right") === "right";
+        const fitsRight = p.x + 12 + width <= W - margin;
+        const fitsLeft = p.x - 12 - width >= margin;
+        const placeRight = wantsRight ? fitsRight || !fitsLeft : !fitsLeft && fitsRight;
+        const x = placeRight ? Math.min(p.x + 12, W - width - margin) : Math.max(p.x - 12 - width, margin);
         const y = Math.min(Math.max(p.y - 11 + (marker.dy ?? 0), 4), H - 26);
         return (
           <g key={i}>
