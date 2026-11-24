@@ -483,8 +483,8 @@ function RaceScreenInner() {
           if (summary) {
             summary.raceId = Date.now();
             setFinalResult({ won: summary.won, marginSec: summary.opponentTimeSec - summary.myTimeSec });
-            // 전적과 개인 최고 기록에 반영한다 (이 기기에만 저장). 데모도 똑같이 반영한다
-            {
+            // 전적과 개인 최고 기록에 반영한다 (이 기기에만 저장). 데모는 실제로 뛴 것이 아니므로 반영하지 않는다
+            if (settings.source === "gps") {
               const outcome = recordRace(parseHistory(loadHistoryText()), {
                 opponentId: summary.opponent.id,
                 distanceM: settings.distanceM,
