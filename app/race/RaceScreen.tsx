@@ -240,7 +240,14 @@ function RaceScreenInner() {
       });
     };
 
+    const hasStart = events.some((event) => event.type === "start");
     for (const event of events) {
+      // 출발 순간에는 격차가 0이라 "접전"이 같이 나오는데, 그 자막·멘트가 출발(또는 재대결) 멘트를 덮지 않게 한다.
+      // 심장 박동 효과음만 켠다
+      if (hasStart && event.type === "closeEnter") {
+        sfxRef.current?.handleEvent(event, intensityRef.current);
+        continue;
+      }
       const id = nextLogId.current++;
       const decision = policy.decideEvent(event);
       // 효과음(함성·심장 박동)도 음성 간격과 상관없이 이벤트에 맞춰 바로 낸다

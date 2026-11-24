@@ -20,6 +20,14 @@ import {
   type RaceSource,
 } from "@/lib/race-settings";
 
+/** 중계 양(강도)마다 무엇을 말해 주는지 한 줄 설명 */
+const INTENSITY_HELP: Record<Intensity, string> = {
+  off: "",
+  minimal: "추월·접전·결승 같은 큰 순간만 말해요",
+  normal: "큰 순간 + 1km·절반·마지막 200m, 300m마다 중간 상황",
+  active: "일반 + 200m마다 중간 상황, 추월 예상 시간, 승률 변화",
+};
+
 /** 화면에서 고르는 중계 강도 (끄기는 실험용이라 따로 둔다) */
 const MAIN_INTENSITIES: Intensity[] = ["minimal", "normal", "active"];
 
@@ -163,7 +171,11 @@ export default function StartScreen() {
           </button>
         )}
 
-        <div role="radiogroup" aria-label="중계 강도" className="grid grid-cols-3 gap-2">
+        <div>
+          <h2 className="text-sm font-semibold text-white/70">중계 양</h2>
+          <p className="text-[11px] text-white/50">{INTENSITY_HELP[mainIntensity]}</p>
+        </div>
+        <div role="radiogroup" aria-label="중계 양" className="grid grid-cols-3 gap-2">
           {MAIN_INTENSITIES.map((option) => (
             <button
               key={option}
