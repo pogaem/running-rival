@@ -78,7 +78,7 @@ function AnalysisSheet({ summary, onClose }: { summary: RaceSummary; onClose: ()
   );
 }
 
-function SharePanel({ summary }: { summary: RaceSummary }) {
+function SharePanel({ summary, demo = false }: { summary: RaceSummary; demo?: boolean }) {
   const [sharedId, setSharedId] = useState<string | null>(summary.sharedId ?? null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -96,6 +96,11 @@ function SharePanel({ summary }: { summary: RaceSummary }) {
   if (!track || track.length < 2) return null;
 
   const share = async () => {
+    // 데모는 버튼만 똑같이 보여 주고 서버에는 아무것도 올리지 않는다
+    if (demo) {
+      setSharedId("demo");
+      return;
+    }
     setBusy(true);
     setMessage(null);
     const result = await shareMyRecord({
@@ -111,6 +116,10 @@ function SharePanel({ summary }: { summary: RaceSummary }) {
   };
   const unshare = async () => {
     if (!sharedId) return;
+    if (demo) {
+      setSharedId(null);
+      return;
+    }
     setBusy(true);
     setMessage(null);
     const result = await unshareMyRecord(sharedId);
@@ -126,7 +135,7 @@ function SharePanel({ summary }: { summary: RaceSummary }) {
     <section aria-label="내 기록 공유" className="glass flex flex-col gap-2 px-4 py-3 text-sm">
       {sharedId ? (
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-white/70">공유했어요. 다른 러너가 이 기록과 대결할 수 있어요.</p>
+          <p className="text-xs text-white/70">{demo ? "데모라 실제로는 올라가지 않았어요." : "공유했어요. 다른 러너가 이 기록과 대결할 수 있어요."}</p>
           <button type="button" onClick={unshare} disabled={busy} className="btn-secondary !px-3 !py-1.5 text-xs disabled:opacity-40">
             공유 취소
           </button>
@@ -233,13 +242,7 @@ export default function ResultScreen() {
       </button>
 
       <div className="shrink-0">
-        {settings.source === "gps" ? (
-          <SharePanel key={summary.raceId ?? 0} summary={summary} />
-        ) : (
-          <p className="glass px-4 py-3 text-xs text-white/60">
-            데모로 뛴 결과는 전적·최고 기록에 넣지 않고, 공유할 수도 없어요. 실제로 뛴 기록만 남아요.
-          </p>
-        )}
+        <SharePanel key={summary.raceId ?? 0} summary={summary} demo={settings.source !== "gps"} />
       </div>
 
       <div className="flex shrink-0 gap-3 pb-1">
