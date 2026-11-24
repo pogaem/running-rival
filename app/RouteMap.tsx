@@ -23,11 +23,14 @@ export function courseShapeFor(distanceM: number | undefined): CourseShape {
   return { freq: 10.5, amp: 124, wiggle: 30 };
 }
 
-function buildRoute(h: number, top: number, shape: CourseShape): { x: number; y: number }[] {
+/** 세로로 긴 레이스 지도는 가로가 잘려 보이므로 코스를 가운데로 모은다 */
+const X_SCALE: Record<RouteVariant, number> = { banner: 1, compact: 0.62, wide: 1, tall: 1 };
+
+function buildRoute(h: number, top: number, shape: CourseShape, xScale = 1): { x: number; y: number }[] {
   return Array.from({ length: STEPS + 1 }, (_, i) => {
     const t = i / STEPS;
     return {
-      x: 170 + shape.amp * Math.sin(shape.freq * t + 0.6) + shape.wiggle * Math.sin(13 * t + 1),
+      x: 170 + xScale * (shape.amp * Math.sin(shape.freq * t + 0.6) + shape.wiggle * Math.sin(13 * t + 1)),
       y: top + (h - top - 38) * t,
     };
   });
@@ -46,7 +49,7 @@ function contourPaths(cx: number, cy: number, rings: number, step: number, seed:
   });
 }
 
-const TOPS: Record<RouteVariant, number> = { wide: 38, banner: 58, compact: 92, tall: 112 };
+const TOPS: Record<RouteVariant, number> = { wide: 38, banner: 58, compact: 128, tall: 112 };
 const CONTOURS: Record<RouteVariant, string[]> = {
   wide: [...contourPaths(60, 90, 8, 20, 1), ...contourPaths(290, 220, 9, 18, 4)],
   banner: [...contourPaths(60, 70, 6, 16, 1), ...contourPaths(290, 150, 7, 14, 4)],
@@ -59,7 +62,7 @@ function geometryFor(variant: RouteVariant, distanceM: number | undefined): Geom
   const key = `${variant}:${shape.freq}`;
   let geometry = geometryCache.get(key);
   if (!geometry) {
-    geometry = { h: HEIGHTS[variant], route: buildRoute(HEIGHTS[variant], TOPS[variant], shape), contours: CONTOURS[variant] };
+    geometry = { h: HEIGHTS[variant], route: buildRoute(HEIGHTS[variant], TOPS[variant], shape, X_SCALE[variant]), contours: CONTOURS[variant] };
     geometryCache.set(key, geometry);
   }
   return geometry;
@@ -167,14 +170,36 @@ export default function RouteMap({
         const lane = marker.tone === "me" ? 5 : marker.tone === "rival" ? -5 : 0;
         const p = { x: base.x + lane, y: base.y };
         const tone = TONE[marker.tone];
+        // 선수 표시: 레퍼런스처럼 "거리 말풍선 + 둥근 카드"를 코스 위쪽에 띄운다 (나는 오른쪽, 상대는 왼쪽으로 벌려서 겹치지 않게)
+        if (marker.tone === "me" || marker.tone === "rival") {
+          const isMe = marker.tone === "me";
+          const pillW = Math.max(52, marker.label.length * 6.4 + 18);
+          const edge = variant === "compact" ? 96 : 52; // 좁은 화면에서 양옆이 잘려도 카드가 안 잘리게
+          const cx = Math.min(Math.max(p.x + (isMe ? 30 : -30), edge), W - edge);
+          const cardY = Math.max(p.y - 46, 76); // 위쪽 거리·시간 카드 아래에 오도록 76 이상
+          const pillY = cardY - 26;
+          return (
+            <g key={i}>
+              <line x1={cx} y1={cardY + 32} x2={p.x} y2={p.y} stroke="rgba(255,255,255,0.55)" strokeWidth="1.5" />
+              <circle cx={p.x} cy={p.y} r="6" fill={isMe ? "#facc15" : "#ffffff"} stroke="#0a0c12" strokeWidth="2" />
+              <rect x={cx - pillW / 2} y={pillY} width={pillW} height="22" rx="11" fill="rgba(255,255,255,0.92)" />
+              <text x={cx} y={pillY + 15} textAnchor="middle" fontSize="11" fontWeight="700" fill="#0a0c12">
+                {marker.label}
+              </text>
+              <rect x={cx - 16} y={cardY} width="32" height="32" rx="11" fill={isMe ? "#facc15" : "rgba(255,255,255,0.22)"} stroke={isMe ? "#fde68a" : "rgba(255,255,255,0.6)"} strokeWidth="1.5" />
+              <text x={cx} y={cardY + 21} textAnchor="middle" fontSize="13" fontWeight="800" fill={isMe ? "#0a0c12" : "#ffffff"}>
+                {isMe ? "나" : "상"}
+              </text>
+            </g>
+          );
+        }
         const width = Math.max(34, marker.label.length * 7.2 + 16);
         const right = (marker.side ?? "right") === "right";
         const x = right ? Math.min(p.x + 12, W - width - 24) : Math.max(p.x - 12 - width, 24);
         const y = Math.min(Math.max(p.y - 11 + (marker.dy ?? 0), 4), H - 26);
         return (
           <g key={i}>
-            {marker.tone === "me" && <circle cx={p.x} cy={p.y} r="11" fill="rgba(250,204,21,0.28)" />}
-            <circle cx={p.x} cy={p.y} r={marker.tone === "km" ? 3.5 : marker.tone === "me" ? 7 : 6} fill={marker.tone === "me" ? "#facc15" : "#ffffff"} stroke="#0a0c12" strokeWidth="2" />
+            <circle cx={p.x} cy={p.y} r={marker.tone === "km" ? 3.5 : 6} fill="#ffffff" stroke="#0a0c12" strokeWidth="2" />
             <rect x={x} y={y} width={width} height="22" rx="11" fill={tone.fill} />
             <text x={x + width / 2} y={y + 15} textAnchor="middle" fontSize="11" fontWeight="700" fill={tone.text}>
               {marker.label}

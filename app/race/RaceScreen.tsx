@@ -619,8 +619,8 @@ function RaceScreenInner() {
       side: "right",
     })),
     { fraction: 1, label: "도착", tone: "flag", side: "left" },
-    { fraction: trackPercent(rivalDistance) / 100, label: `상대 ${(rivalDistance / 1000).toFixed(2)}km`, tone: "rival", side: meAhead ? "right" : "left", dy: meAhead ? -15 : 15 },
-    { fraction: trackPercent(myDistance) / 100, label: `나 ${(myDistance / 1000).toFixed(2)}km`, tone: "me", side: meAhead ? "left" : "right", dy: meAhead ? 15 : -15 },
+    { fraction: trackPercent(rivalDistance) / 100, label: `${(rivalDistance / 1000).toFixed(2)} km`, tone: "rival", side: meAhead ? "right" : "left", dy: meAhead ? -15 : 15 },
+    { fraction: trackPercent(myDistance) / 100, label: `${(myDistance / 1000).toFixed(2)} km`, tone: "me", side: meAhead ? "left" : "right", dy: meAhead ? 15 : -15 },
   ];
   const gapPosition = finalResult ? (finalResult.won ? 92 : 8) : 50 + (Math.max(-GAP_BAR_RANGE_M, Math.min(GAP_BAR_RANGE_M, gap)) / GAP_BAR_RANGE_M) * 50;
   const percent = tick?.estimate ? displayPercent(tick.estimate.probability) : null;
@@ -803,19 +803,19 @@ function RaceScreenInner() {
           progress={trackPercent(myDistance) / 100}
           markers={raceMarkers}
         />
-        <div className="absolute inset-x-0 top-0 flex items-start justify-between bg-gradient-to-b from-black/75 to-transparent p-4 pb-8">
-          <div>
-            <p className="text-[11px] font-semibold text-white/60">
+        <div className="absolute inset-x-3 top-3 flex items-stretch justify-between gap-2">
+          <div className="glass min-w-0 flex-1 !rounded-3xl px-4 py-2">
+            <p className="truncate text-[11px] font-semibold text-white/65">
               {opponent ? displayName(opponent.id) : "상대"} 와 {raceDistanceM / 1000}km
             </p>
-            <p className="text-5xl font-bold tracking-tight tabular-nums">
+            <p className="text-3xl font-bold tracking-tight tabular-nums">
               {(myDistance / 1000).toFixed(2)}
-              <span className="ml-1 text-sm font-medium text-white/60">km</span>
+              <span className="ml-1 text-sm font-medium text-white/65">km</span>
             </p>
           </div>
-          <div className="text-right">
-            <p className="text-[11px] font-semibold text-white/60">시간</p>
-            <p className="text-3xl font-bold tracking-tight tabular-nums">{formatRaceClock(signalLost?.t ?? tick?.t ?? 0)}</p>
+          <div className="glass shrink-0 !rounded-3xl px-4 py-2 text-right">
+            <p className="text-[11px] font-semibold text-white/65">시간</p>
+            <p className="text-2xl font-bold tracking-tight tabular-nums">{formatRaceClock(signalLost?.t ?? tick?.t ?? 0)}</p>
           </div>
         </div>
       </section>
@@ -931,15 +931,33 @@ function RaceScreenInner() {
             </Link>
           </div>
         ) : (
-          <div className="flex gap-3">
-            <button type="button" onClick={() => pauseControlRef.current?.setPaused(!userPaused)} className="flex-1 btn-primary">
-              {userPaused ? "이어달리기" : "중지"}
-            </button>
-            <button type="button" onClick={() => {
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
                 setConfirmingEnd(true);
                 if (!userPaused) pauseControlRef.current?.setPaused(true); // 나갈지 고르는 동안 경기는 멈춘다
-              }} className="flex-1 btn-secondary">
+              }}
+              className="flex-1 btn-secondary"
+            >
               나가기
+            </button>
+            <button
+              type="button"
+              aria-label={userPaused ? "이어달리기" : "중지"}
+              onClick={() => pauseControlRef.current?.setPaused(!userPaused)}
+              className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-white text-xl font-bold text-[#0a0c12] shadow-[0_8px_28px_rgba(255,255,255,0.25)]"
+            >
+              {userPaused ? (
+                <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 4.5v15l13-7.5z" fill="currentColor" />
+                </svg>
+              ) : (
+                <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="5.5" y="4" width="4.5" height="16" rx="1.5" fill="currentColor" />
+                  <rect x="14" y="4" width="4.5" height="16" rx="1.5" fill="currentColor" />
+                </svg>
+              )}
             </button>
           </div>
         )}
