@@ -925,9 +925,11 @@ function RaceScreenInner() {
       )}
 
       <div className="flex shrink-0 flex-col gap-2 pb-1">
-        {finished || !running ? (
-          <Link href="/result" className="btn-primary">
-            결과 보기
+        {finished ? (
+          <p className="py-3 text-center text-sm text-white/60">결과로 넘어가는 중…</p>
+        ) : !running ? (
+          <Link href="/" className="btn-primary">
+            처음으로
           </Link>
         ) : waitingStart ? (
           <div className="flex items-center gap-3">
