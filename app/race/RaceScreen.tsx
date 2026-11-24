@@ -143,6 +143,9 @@ function voiceNote(voice: VoiceStatus): string | null {
  * 주소(설정·n)가 바뀌면 레이스 화면을 통째로 새로 만든다.
  * 앱이 /race 화면을 되살려 쓰는 바람에, 다시 대결해도 지난 레이스 상태가 남아 "소리 켜고 시작" 없이 바로 달리던 문제를 막는다.
  */
+/** 멘트를 시켜서 소리가 나기 시작할 때까지 걸리는 시간(초) 추정 */
+const SPEECH_LAG_SEC = 1;
+
 export default function RaceScreen() {
   const searchParams = useSearchParams();
   return <RaceScreenInner key={searchParams.toString()} />;
@@ -219,6 +222,7 @@ function RaceScreenInner() {
   const speakerRef = useRef<Speaker | null>(null);
   /** 지난 대결 한마디. 출발 중계 때 대신 말한다 */
   const introRef = useRef<string | null>(null);
+  const recentGaps = useRef<{ t: number; gapM: number }[]>([]); // 최근 몇 초의 격차(읽는 동안 변할 격차를 미리 맞추는 데 쓴다)
   const inFlightSpeech = useRef(0); // 읽으라고 시켰지만 아직 끝나지 않은 멘트 수
   const speakingCount = useRef(0); // 지금 읽는 중인 멘트 수(효과음을 낮추는 동안)
   const policyRef = useRef<VoicePolicy | null>(null);
@@ -275,7 +279,21 @@ function RaceScreenInner() {
     };
 
     const hasStart = events.some((event) => event.type === "start");
-    for (const event of events) {
+    // 멘트를 읽기 시작하기까지 걸리는 시간(약 1초, 데모는 배속만큼 경기 시간이 흐른다) 동안 격차가 변하므로,
+    // 최근 격차 변화 속도로 "읽는 순간의 격차"를 미리 계산해 말한다. 안 그러면 화면은 2미터인데 3미터라고 들린다
+    const withSpeechLag = (event: RaceEvent): RaceEvent => {
+      if (event.type !== "status") return event;
+      const recent = recentGaps.current;
+      const past = recent.find((point) => event.t - point.t <= 5 && event.t - point.t >= 1.5);
+      if (!past) return event;
+      const rate = (event.gapM - past.gapM) / (event.t - past.t); // 초당 격차 변화(m/s)
+      const lag = SPEECH_LAG_SEC * raceTimeScale;
+      const adjust = Math.max(-5, Math.min(5, rate * lag));
+      return { ...event, gapM: event.gapM + adjust };
+    };
+
+    for (const rawEvent of events) {
+      const event = withSpeechLag(rawEvent);
       // 출발 순간에는 격차가 0이라 "접전"이 같이 나오는데, 그 자막·멘트가 출발(또는 재대결) 멘트를 덮지 않게 한다.
       // 심장 박동 효과음만 켠다
       if (hasStart && event.type === "closeEnter") {
@@ -314,7 +332,7 @@ function RaceScreenInner() {
     }
 
     if (entries.length > 0) setLog((current) => prependLog(current, entries));
-  }, []);
+  }, [raceTimeScale]);
 
   // 중계 강도를 바꾸면 정책에도 바로 알린다
   useEffect(() => {
@@ -528,6 +546,8 @@ function RaceScreenInner() {
         setSignalLost(null);
         latestTick.current = result;
         setTick(result);
+        recentGaps.current.push({ t: raceTimeSec, gapM: result.snapshot.gapM });
+        recentGaps.current = recentGaps.current.filter((point) => raceTimeSec - point.t <= 6);
         outputMoments(result.events, result.prediction, raceTimeSec, decidedAtMs);
         if (settings.source === "gps") setGpsError(null);
         if (result.finished) {
@@ -550,6 +570,7 @@ function RaceScreenInner() {
       input.stop();
       speakerRef.current?.cancel();
       inFlightSpeech.current = 0;
+      recentGaps.current = [];
       sfxRef.current?.stopAll();
     };
   }, [phase, outputMoments, opponent, raceDistanceM, raceTimeScale, settings]);
