@@ -902,7 +902,7 @@ function RaceScreenInner() {
       <div className="flex shrink-0 flex-col gap-2 pb-1">
         {confirmingEnd && !finished && running && (
           <p role="alert" className="text-center text-xs text-white/70">
-            끝까지 달리지 않고 나가면 결과와 전적에 반영되지 않아요. 정말 나갈까요?
+            경기를 잠깐 멈췄어요. 끝까지 달리지 않고 나가면 결과와 전적에 반영되지 않아요. 정말 나갈까요?
           </p>
         )}
         {finished || !running ? (
@@ -920,7 +920,10 @@ function RaceScreenInner() {
           </div>
         ) : confirmingEnd ? (
           <div className="flex gap-3">
-            <button type="button" onClick={() => setConfirmingEnd(false)} className="flex-1 btn-secondary">
+            <button type="button" onClick={() => {
+                setConfirmingEnd(false);
+                if (!waitingStart) pauseControlRef.current?.setPaused(false); // 계속 달리기: 멈춘 경기를 이어간다
+              }} className="flex-1 btn-secondary">
               계속 달리기
             </button>
             <Link href="/" className="flex-1 btn-primary">
@@ -932,7 +935,10 @@ function RaceScreenInner() {
             <button type="button" onClick={() => pauseControlRef.current?.setPaused(!userPaused)} className="flex-1 btn-primary">
               {userPaused ? "이어달리기" : "중지"}
             </button>
-            <button type="button" onClick={() => setConfirmingEnd(true)} className="flex-1 btn-secondary">
+            <button type="button" onClick={() => {
+                setConfirmingEnd(true);
+                if (!userPaused) pauseControlRef.current?.setPaused(true); // 나갈지 고르는 동안 경기는 멈춘다
+              }} className="flex-1 btn-secondary">
               나가기
             </button>
           </div>
