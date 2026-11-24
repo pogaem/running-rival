@@ -178,7 +178,7 @@ export default function RouteMap({
           const pillW = Math.max(52, marker.label.length * 6.4 + 18);
           const edge = variant === "compact" ? 96 : 52; // 좁은 화면에서 양옆이 잘려도 카드가 안 잘리게
           const cx = Math.min(Math.max(p.x + (isMe ? 30 : -30), edge), W - edge);
-          const cardY = Math.max(p.y - 46, 76); // 위쪽 거리·시간 카드 아래에 오도록 76 이상
+          const cardY = Math.max(p.y - 46, 96); // 위쪽 거리·시간 숫자 아래에 오도록 96 이상
           const pillY = cardY - 26;
           const cardW = isMe ? 32 : 44;
           return (
