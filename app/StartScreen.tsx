@@ -96,6 +96,34 @@ export default function StartScreen() {
     <main className="mx-auto flex h-dvh w-full max-w-md flex-col gap-3 overflow-hidden p-4">
       <header className="relative h-[26dvh] min-h-[150px] shrink-0 overflow-hidden rounded-3xl border border-white/10">
         <RouteMap variant="banner" distanceM={distanceM} label={`${distanceM / 1000}km 코스 미리보기`} markers={previewMarkers} />
+        <div className="absolute right-3 top-3 z-10 flex items-center gap-1.5 text-[11px]">
+          {confirmReset ? (
+            <>
+              <span className="rounded-full bg-black/60 px-2 py-1 text-white/80">전적·기록을 모두 지울까요?</span>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem(HISTORY_STORAGE_KEY);
+                  } catch {
+                    // 지우지 못해도 앱은 그대로 쓸 수 있다
+                  }
+                  window.location.reload();
+                }}
+                className="rounded-full border border-red-400/70 bg-black/60 px-2.5 py-1 font-semibold text-red-300"
+              >
+                지우기
+              </button>
+              <button type="button" onClick={() => setConfirmReset(false)} className="rounded-full border border-white/30 bg-black/60 px-2.5 py-1 text-white/80">
+                취소
+              </button>
+            </>
+          ) : (
+            <button type="button" onClick={() => setConfirmReset(true)} className="rounded-full border border-white/25 bg-black/50 px-2.5 py-1 text-white/70">
+              기록 지우기
+            </button>
+          )}
+        </div>
         <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/70 to-transparent px-5 pb-8 pt-4">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">Running Rival</p>
           <h1 className="text-3xl font-bold leading-tight tracking-tight">러닝 라이벌</h1>
@@ -212,37 +240,6 @@ export default function StartScreen() {
           <p className="text-sm text-white/60">{pace.ok && distance.ok ? "맞는 상대 기록이 없어요" : "거리와 페이스를 확인해 주세요"}</p>
         )}
       </section>
-
-      {historyText && (
-        <div className="flex shrink-0 items-center justify-end gap-2 text-xs text-white/50">
-          {confirmReset ? (
-            <>
-              <span>이 기기의 전적·최고 기록을 모두 지울까요?</span>
-              <button
-                type="button"
-                onClick={() => {
-                  try {
-                    localStorage.removeItem(HISTORY_STORAGE_KEY);
-                  } catch {
-                    // 지우지 못해도 앱은 그대로 쓸 수 있다
-                  }
-                  window.location.reload();
-                }}
-                className="rounded-full border border-red-400/60 px-3 py-1 font-semibold text-red-300"
-              >
-                지우기
-              </button>
-              <button type="button" onClick={() => setConfirmReset(false)} className="rounded-full border border-white/20 px-3 py-1">
-                취소
-              </button>
-            </>
-          ) : (
-            <button type="button" onClick={() => setConfirmReset(true)} className="underline">
-              내 전적·기록 지우기
-            </button>
-          )}
-        </div>
-      )}
 
       <div className="mt-auto flex shrink-0 flex-col gap-2">
         <button
