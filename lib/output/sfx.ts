@@ -84,6 +84,8 @@ export type Sfx = {
   readonly heartbeatPlaying: boolean;
   /** 모든 효과음을 멈춘다 */
   stopAll(): void;
+  /** 심장 박동만 멈춘다(함성·박수는 그대로 둔다) */
+  stopHeartbeat(): void;
 };
 
 export function createSfx(env: SfxEnv | null): Sfx {
@@ -129,6 +131,8 @@ export function createSfx(env: SfxEnv | null): Sfx {
 
     handleEvent(event, intensity) {
       const action = sfxActionFor(event, intensity);
+      // 결승선을 지나면 이겼든 졌든 심장 박동은 반드시 끈다(이기면 함성이 나가는 쪽으로 가서 못 끄던 문제)
+      if (event.type === "finish") stopHeartbeat(HEARTBEAT_FADE_SEC);
       if (!action || !env) return null;
       try {
         if (action === "cheer") {
@@ -161,6 +165,10 @@ export function createSfx(env: SfxEnv | null): Sfx {
 
     get heartbeatPlaying() {
       return heartbeat !== null;
+    },
+
+    stopHeartbeat() {
+      stopHeartbeat(HEARTBEAT_FADE_SEC);
     },
 
     stopAll() {

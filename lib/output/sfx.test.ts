@@ -170,3 +170,25 @@ describe("createSfx", () => {
     expect(sfx.handleEvent(overtake, "normal")).toBeNull();
   });
 });
+
+describe("결승선에서 심장 박동 끄기", () => {
+  it("이겨서 함성이 나가도 심장 박동은 꺼진다", async () => {
+    const { env, stops } = makeEnv();
+    const sfx = createSfx(env);
+    await sfx.preload();
+    sfx.handleEvent(closeEnter, "normal");
+    expect(sfx.heartbeatPlaying).toBe(true);
+    sfx.handleEvent(win, "normal");
+    expect(sfx.heartbeatPlaying).toBe(false);
+    expect(stops).toContain("heartbeat");
+  });
+
+  it("stopHeartbeat은 심장 박동만 끈다", async () => {
+    const { env } = makeEnv();
+    const sfx = createSfx(env);
+    await sfx.preload();
+    sfx.handleEvent(closeEnter, "normal");
+    sfx.stopHeartbeat();
+    expect(sfx.heartbeatPlaying).toBe(false);
+  });
+});

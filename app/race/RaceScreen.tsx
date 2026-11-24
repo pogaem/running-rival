@@ -490,11 +490,15 @@ function RaceScreenInner() {
         outputMoments(result.events, result.prediction, raceTimeSec, decidedAtMs);
         if (settings.source === "gps") setGpsError(null);
         if (result.finished) {
+          sfxRef.current?.stopHeartbeat(); // 결승선을 지나면 심장 박동은 어떤 경우에도 끈다
           input.stop(); // 결승선을 지나면 위치 추적(또는 데모 재생)을 끈다
           setRunning(false);
         }
       },
-      onEnd: () => setRunning(false),
+      onEnd: () => {
+        sfxRef.current?.stopHeartbeat(); // 경기가 끝났는데 심장 박동이 남지 않게
+        setRunning(false);
+      },
       onError: (error) => setGpsError(error),
     });
 
