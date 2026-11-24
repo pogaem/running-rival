@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 import { buildAnalysis, computeGraphGeometry, describeElevation } from "@/lib/result";
 import { shareMyRecord, unshareMyRecord } from "@/lib/shared/client";
-import { describeNewBest } from "@/lib/history";
+import { describeNewBest } from "@/lib/storage/history";
 import { formatRaceClock } from "@/lib/output/subtitles";
 import { freshRaceHref } from "@/lib/race-settings";
 import { useRouter } from "next/navigation";
@@ -233,7 +233,13 @@ export default function ResultScreen() {
       </button>
 
       <div className="shrink-0">
-        <SharePanel key={summary.raceId ?? 0} summary={summary} />
+        {settings.source === "gps" ? (
+          <SharePanel key={summary.raceId ?? 0} summary={summary} />
+        ) : (
+          <p className="glass px-4 py-3 text-xs text-white/60">
+            데모로 뛴 결과는 전적·최고 기록에 넣지 않고, 공유할 수도 없어요. 실제로 뛴 기록만 남아요.
+          </p>
+        )}
       </div>
 
       <div className="flex shrink-0 gap-3 pb-1">

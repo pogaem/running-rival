@@ -46,3 +46,6 @@ next-env.d.ts
 # 개발용 공유 기록 저장 파일
 /.data/
 /.data-test-*/
+
+# bkit 작업 기록(명령 감사 로그 등)
+/.bkit/

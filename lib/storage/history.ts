@@ -2,8 +2,9 @@
 // 이 기기의 localStorage에만 저장한다. 서버로 보내지 않고, 위치 좌표나 이름도 담지 않는다.
 // 상대 이름표(가상러너-03 같은 익명 번호)별 승·패, 대결 거리별 개인 최고 기록(초)만 둔다.
 // 끝까지 달리지 않은 경기는 저장하지 않는다 (호출하는 쪽이 완주했을 때만 부른다).
-import type { RaceDistanceM } from "./race-settings";
-import { formatRaceClock } from "./output/subtitles";
+import type { RaceDistanceM } from "../race-settings";
+import { formatRaceClock } from "../output/subtitles";
+import type { DistancePoint } from "../record";
 
 export const HISTORY_STORAGE_KEY = "running-rival:history";
 
@@ -14,11 +15,21 @@ export type RivalRecord = {
   lastWon: boolean;
 };
 
+/** 내 최고 기록의 달린 모양: 매칭에서 "내가 어느 구간에서 빠르고 느린지"를 알려 준다. 위치 좌표는 없다 */
+export type MyRun = {
+  /** 총 상승 고도(m). 고도 정보가 없었으면 null */
+  elevationGainM: number | null;
+  /** 시간별 누적 거리(250m마다) */
+  points: DistancePoint[];
+};
+
 export type History = {
   version: 1;
   rivals: Record<string, RivalRecord>;
   /** 대결 거리(m)별 개인 최고 기록(초) */
   bests: Record<string, number>;
+  /** 대결 거리(m)별 개인 최고 기록 때의 달린 모양. 실제 GPS로 뛴 것만 담는다 */
+  runs?: Record<string, MyRun>;
 };
 
 export const EMPTY_HISTORY: History = { version: 1, rivals: {}, bests: {} };
@@ -35,7 +46,7 @@ export type RecordOutcome = {
 /** 한 경기의 결과를 기록에 더한다. 받은 기록은 바꾸지 않고 새 기록을 돌려준다 */
 export function recordRace(
   history: History,
-  race: { opponentId: string; distanceM: RaceDistanceM; won: boolean; myTimeSec: number },
+  race: { opponentId: string; distanceM: RaceDistanceM; won: boolean; myTimeSec: number; run?: MyRun },
 ): RecordOutcome {
   const before = history.rivals[race.opponentId] ?? { wins: 0, losses: 0, lastWon: race.won };
   const rival: RivalRecord = {
@@ -51,6 +62,8 @@ export function recordRace(
       version: 1,
       rivals: { ...history.rivals, [race.opponentId]: rival },
       bests: { ...history.bests, [key]: newBest ? race.myTimeSec : previousBestSec },
+      // 최고 기록을 세웠을 때만 그때의 달린 모양으로 바꾼다
+      ...(newBest && race.run ? { runs: { ...history.runs, [key]: race.run } } : history.runs ? { runs: history.runs } : {}),
     },
     newBest,
     previousBestSec,
@@ -81,7 +94,19 @@ export function parseHistory(text: string | null): History {
     for (const [distance, sec] of Object.entries(value.bests)) {
       if (typeof sec === "number" && Number.isFinite(sec) && sec > 0) bests[distance] = sec;
     }
-    return { version: 1, rivals, bests };
+    const runs: Record<string, MyRun> = {};
+    for (const [distance, run] of Object.entries(value.runs ?? {})) {
+      const points = Array.isArray(run?.points) ? run.points : [];
+      const valid =
+        points.length >= 2 &&
+        points.length <= 100 &&
+        points.every((p) => p && Number.isFinite(p.t) && Number.isFinite(p.d) && p.t >= 0 && p.d >= 0);
+      const gain = run?.elevationGainM;
+      if (valid && (gain === null || (typeof gain === "number" && Number.isFinite(gain) && gain >= 0))) {
+        runs[distance] = { elevationGainM: gain, points: points.map((p) => ({ t: p.t, d: p.d })) };
+      }
+    }
+    return { version: 1, rivals, bests, ...(Object.keys(runs).length > 0 ? { runs } : {}) };
   } catch {
     return EMPTY_HISTORY;
   }

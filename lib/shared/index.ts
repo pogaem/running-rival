@@ -11,6 +11,10 @@ export function getSharedStore(): SharedStore {
   if (store) return store;
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // 배포 환경에서 키가 빠졌는데 조용히 파일 저장소로 넘어가면 기록이 사라지거나 오류가 난다 → 분명히 멈춘다
+  if (process.env.NODE_ENV === "production" && !(url && key)) {
+    throw new Error("공유 저장소 환경 변수(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)가 없습니다");
+  }
   // 배포 환경(키가 있을 때)은 Supabase, 개발 중에는 내 컴퓨터의 파일
   store =
     url && key

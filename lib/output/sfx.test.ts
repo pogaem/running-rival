@@ -68,6 +68,27 @@ describe("createSfx", () => {
     expect(plays[0].durationSec).toBeGreaterThan(0);
   });
 
+  it("출발하자마자 접전이라 소리 파일을 아직 못 불러왔어도, 불러오는 대로 심장 박동을 튼다", async () => {
+    const { env, plays } = makeEnv();
+    const sfx = createSfx(env);
+    const loading = sfx.preload(); // 아직 끝나지 않음
+    sfx.handleEvent(closeEnter, "normal");
+    expect(plays).toHaveLength(0);
+    await loading;
+    expect(plays.filter((p) => p.name === "heartbeat")).toHaveLength(1);
+    expect(sfx.heartbeatPlaying).toBe(true);
+  });
+
+  it("불러오기 전에 접전이 끝났으면 불러온 뒤에도 틀지 않는다", async () => {
+    const { env, plays } = makeEnv();
+    const sfx = createSfx(env);
+    const loading = sfx.preload();
+    sfx.handleEvent(closeEnter, "normal");
+    sfx.handleEvent(closeLeave, "normal");
+    await loading;
+    expect(plays.filter((p) => p.name === "heartbeat")).toHaveLength(0);
+  });
+
   it("접전 동안 심장 박동을 반복해서 틀고, 이미 틀고 있으면 또 틀지 않는다", async () => {
     const { env, plays, stops } = makeEnv();
     const sfx = createSfx(env);

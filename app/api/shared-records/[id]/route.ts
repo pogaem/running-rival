@@ -3,9 +3,9 @@ import { getSharedStore } from "@/lib/shared";
 import { removeRecord } from "@/lib/shared/service";
 
 export async function DELETE(request: Request, ctx: RouteContext<"/api/shared-records/[id]">) {
-  const { id } = await ctx.params;
+  const { id } = await ctx.params; // 이미 풀린(디코딩된) 값이다. 다시 풀면 이상한 % 주소에서 오류가 난다
   const token = request.headers.get("x-delete-token") ?? "";
-  const result = await removeRecord(getSharedStore(), decodeURIComponent(id), token);
+  const result = await removeRecord(getSharedStore(), id, token);
   if (result === "not-found") return Response.json({ message: "이미 지워졌거나 없는 기록입니다" }, { status: 404 });
   if (result === "forbidden") return Response.json({ message: "이 기기에서 올린 기록이 아닙니다" }, { status: 403 });
   return Response.json({ ok: true });

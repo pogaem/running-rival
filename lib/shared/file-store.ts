@@ -2,7 +2,7 @@
 // 파일은 .data/ 안에 있고 git에 올라가지 않는다. 쓰기는 한 번에 하나씩 순서대로 한다.
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { SharedEntry, SharedStore } from "./store";
+import { planAdd, type SharedEntry, type SharedStore } from "./store";
 
 export function createFileStore(filePath: string): SharedStore {
   let queue: Promise<unknown> = Promise.resolve();
@@ -32,11 +32,14 @@ export function createFileStore(filePath: string): SharedStore {
 
   return {
     list: () => read(),
-    add: (entry) =>
+    add: (entry, ipHash, limits) =>
       exclusive(async () => {
         const entries = await read();
-        entries.push(entry);
+        const plan = planAdd(entries, ipHash, limits, Date.now());
+        if (plan.result !== "ok") return plan;
+        entries.push({ ...entry, record: { ...entry.record, registrationOrder: plan.registrationOrder }, ipHash, createdAtMs: Date.now() });
         await write(entries);
+        return plan;
       }),
     remove: (id) =>
       exclusive(async () => {

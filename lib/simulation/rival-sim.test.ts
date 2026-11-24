@@ -43,5 +43,5 @@ describe("runSimulation", () => {
     expect(a.races).toBe(virtualRunners.length * 2 * 5);
     expect(a.pacesOnly.meanReversals).toBeGreaterThanOrEqual(0);
     expect(a.prediction.shareWithReversal).toBeLessThanOrEqual(1);
-  });
+  }, 30000); // 계산이 많아 컴퓨터가 바쁠 때 5초를 넘을 수 있다
 });

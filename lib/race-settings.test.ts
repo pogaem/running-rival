@@ -114,3 +114,27 @@ describe("parseDistanceInput (km 직접 입력)", () => {
     }
   });
 });
+
+describe("matchForSettings: 내 최고 기록 모양과 고도를 매칭에 쓴다", () => {
+  const settings = { source: "gps", distanceM: 1000, paceSecPerKm: 330, intensity: "normal" } as const;
+  // 후반에 빨라지는 내 기록 (전반 340/km, 후반 320/km)
+  const myRun = {
+    elevationGainM: 10,
+    points: [
+      { t: 0, d: 0 },
+      { t: 170, d: 500 },
+      { t: 330, d: 1000 },
+    ],
+  };
+
+  it("내 기록이 없으면 일정한 페이스로, 있으면 그 모양으로 매칭하고 둘 다 상대를 고른다", () => {
+    expect(matchForSettings(settings)).not.toBeNull();
+    expect(matchForSettings(settings, undefined, myRun)).not.toBeNull();
+  });
+
+  it("입력한 페이스와 15초/km 넘게 다른 기록은 지금의 나와 다르다고 보고 쓰지 않는다", () => {
+    const plain = matchForSettings(settings);
+    const farRun = { elevationGainM: 10, points: [{ t: 0, d: 0 }, { t: 240, d: 1000 }] }; // 4:00/km
+    expect(matchForSettings(settings, undefined, farRun)?.opponent.id).toBe(plain?.opponent.id);
+  });
+});

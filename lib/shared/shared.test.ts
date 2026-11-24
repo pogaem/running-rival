@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFileStore } from "./file-store";
-import { listRecords, MAX_SHARED_RECORDS, removeRecord, submitRecord } from "./service";
+import { listRecords, MAX_SHARED_RECORDS, PER_IP_LIMIT, removeRecord, submitRecord } from "./service";
 import { createMemoryStore } from "./store";
 import { validateSubmission } from "./validate";
 
@@ -86,6 +86,14 @@ describe("서비스", () => {
     expect(await submitRecord(full, goodBody())).toMatchObject({ ok: false, status: 507 });
   });
 
+  it("같은 접속 주소가 짧은 시간에 너무 많이 올리면 429로 막고, 다른 주소는 막지 않는다", async () => {
+    const store = createMemoryStore();
+    for (let i = 0; i < PER_IP_LIMIT; i++) expect((await submitRecord(store, goodBody(), "주소A")).ok).toBe(true);
+    expect(await submitRecord(store, goodBody(), "주소A")).toMatchObject({ ok: false, status: 429 });
+    expect((await submitRecord(store, goodBody(), "주소B")).ok).toBe(true);
+    expect(await listRecords(store)).toHaveLength(PER_IP_LIMIT + 1);
+  });
+
   it("맞는 비밀 키로만 지울 수 있다", async () => {
     const store = createMemoryStore();
     const result = await submitRecord(store, goodBody());
@@ -109,7 +117,7 @@ describe("파일 저장소", () => {
     dirs.push(dir);
     const file = path.join(dir, "shared.json");
     const store = createFileStore(file);
-    const results = await Promise.all(Array.from({ length: 10 }, () => submitRecord(store, goodBody())));
+    const results = await Promise.all(Array.from({ length: 10 }, (_, i) => submitRecord(store, goodBody(), `주소${i}`)));
     expect(results.every((r) => r.ok)).toBe(true);
     const reopened = createFileStore(file);
     expect(await listRecords(reopened)).toHaveLength(10);

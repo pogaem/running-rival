@@ -7,7 +7,7 @@ import RouteMap, { type RouteMarker } from "./RouteMap";
 import { displayName } from "@/lib/runner-names";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { bestPaceSecPerKm, formatRivalRecord, loadHistoryText, parseHistory } from "@/lib/history";
+import { bestPaceSecPerKm, formatRivalRecord, loadHistoryText, parseHistory } from "@/lib/storage/history";
 import { INTENSITY_LABEL, type Intensity } from "@/lib/output/voice-policy";
 import {
   averagePaceSecPerKm,
@@ -54,9 +54,13 @@ export default function StartScreen() {
   const match = useMemo(
     () =>
       pace.ok && distance.ok
-        ? matchForSettings({ source: "gps", distanceM, paceSecPerKm: pace.paceSecPerKm, intensity: "normal" }, pool.records)
+        ? matchForSettings(
+            { source: "gps", distanceM, paceSecPerKm: pace.paceSecPerKm, intensity: "normal" },
+            pool.records,
+            history.runs?.[String(distanceM)], // 내 최고 기록 때의 달린 모양·고도(있으면 매칭에 쓴다)
+          )
         : null,
-    [pace, distance, distanceM, pool.records],
+    [pace, distance, distanceM, pool.records, history],
   );
   const opponent = match?.opponent ?? null;
   const rivalRecord = opponent ? formatRivalRecord(history.rivals[opponent.id]) : null;

@@ -2,7 +2,8 @@
 // 대결 거리, 평소 페이스, 중계 강도를 검사하고, 시작 화면에서 레이스 화면으로 주소(쿼리)에 실어 보낸다.
 // 위치나 이름 같은 개인 정보는 없고 숫자 세 개뿐이다.
 import { DEFAULT_INTENSITY, type Intensity } from "./output/voice-policy";
-import { matchOpponent, type MatchResult } from "./matching/match";
+import { MATCH_PACE_RANGE_SEC, matchOpponent, type MatchResult } from "./matching/match";
+import { profileFromRecord, type SegmentProfile } from "./matching/profile";
 import type { RunRecord } from "./record";
 import { getOpponentRecords } from "./runners";
 
@@ -129,7 +130,32 @@ export function averagePaceSecPerKm(record: RunRecord): number {
   return (last.t / last.d) * 1000;
 }
 
-/** 설정으로 상대를 고른다(역전 예측 매칭). 같은 설정이면 늘 같은 상대가 나온다 */
-export function matchForSettings(settings: RaceSettings, records: RunRecord[] = getOpponentRecords()): MatchResult | null {
-  return matchOpponent(records, { distanceM: settings.distanceM, paceSecPerKm: settings.paceSecPerKm });
+/**
+ * 설정으로 상대를 고른다(역전 예측 매칭). 같은 설정이면 늘 같은 상대가 나온다.
+ * myRun(이 기기의 개인 최고 기록 때의 달린 모양)이 있고 입력한 페이스와 비슷하면, 일정한 페이스 대신 그 구간별 모양과 상승 고도를 매칭에 쓴다.
+ */
+export function matchForSettings(
+  settings: RaceSettings,
+  records: RunRecord[] = getOpponentRecords(),
+  myRun?: { elevationGainM: number | null; points: RunRecord["points"] } | null,
+): MatchResult | null {
+  let myProfile: SegmentProfile | undefined;
+  let myElevationGainM: number | null = null;
+  if (myRun && myRun.points.length >= 2) {
+    const mine: RunRecord = {
+      id: "나",
+      source: "mine",
+      registrationOrder: 0,
+      completedDistanceM: myRun.points[myRun.points.length - 1].d,
+      totalElevationGainM: myRun.elevationGainM,
+      points: myRun.points,
+    };
+    const profile = profileFromRecord(mine, settings.distanceM);
+    // 오늘 입력한 평소 페이스와 너무 다르면 그 기록은 지금의 나와 다르다고 보고 쓰지 않는다
+    if (profile && Math.abs(profile.avgPaceSecPerKm - settings.paceSecPerKm) <= MATCH_PACE_RANGE_SEC) {
+      myProfile = profile;
+      myElevationGainM = myRun.elevationGainM;
+    }
+  }
+  return matchOpponent(records, { distanceM: settings.distanceM, paceSecPerKm: settings.paceSecPerKm, myProfile, myElevationGainM });
 }

@@ -28,7 +28,8 @@ export const CHEER_VOLUME = 0.7;
 export const APPLAUSE_VOLUME = 0.8;
 export const APPLAUSE_SEC = 7;
 export const APPLAUSE_FADE_SEC = 2;
-export const HEARTBEAT_VOLUME = 0.3;
+/** 심장 박동 파일은 원래 소리가 아주 작아서(최대치의 20%) 크기를 맞춰 다시 저장했다(16비트, 최대치 90%). 그래서 다른 소리보다 작게 둔다 */
+export const HEARTBEAT_VOLUME = 0.45;
 /** 함성은 이 시간(초)만 틀고 서서히 줄인다 (초안). 원본은 14초라 길다 */
 export const CHEER_PLAY_SEC = 6;
 export const CHEER_FADE_SEC = 1.2;
@@ -89,8 +90,18 @@ export function createSfx(env: SfxEnv | null): Sfx {
   const buffers: Partial<Record<SfxName, unknown>> = {};
   let heartbeat: SfxHandle | null = null;
   let cheer: SfxHandle | null = null;
+  /** 출발하자마자 접전이라 심장 박동을 틀어야 하는데 소리 파일이 아직 안 불러와졌을 때: 불러오는 대로 튼다 */
+  let heartbeatWanted = false;
+
+  const startHeartbeat = () => {
+    const buffer = buffers.heartbeat;
+    if (!env || !buffer || heartbeat) return false;
+    heartbeat = env.play(buffer, { volume: clamp(HEARTBEAT_VOLUME), loop: true });
+    return true;
+  };
 
   const stopHeartbeat = (fadeSec: number) => {
+    heartbeatWanted = false;
     heartbeat?.stop(fadeSec);
     heartbeat = null;
   };
@@ -107,6 +118,13 @@ export function createSfx(env: SfxEnv | null): Sfx {
           }
         }),
       );
+      if (heartbeatWanted) {
+        try {
+          startHeartbeat();
+        } catch {
+          // 소리가 안 나도 중계는 계속된다
+        }
+      }
     },
 
     handleEvent(event, intensity) {
@@ -129,9 +147,9 @@ export function createSfx(env: SfxEnv | null): Sfx {
             env.play(applause, { volume: clamp(APPLAUSE_VOLUME), loop: false, durationSec: APPLAUSE_SEC, fadeSec: APPLAUSE_FADE_SEC });
           }
         } else if (action === "heartbeatOn") {
-          const buffer = buffers.heartbeat;
-          if (!buffer || heartbeat) return null;
-          heartbeat = env.play(buffer, { volume: clamp(HEARTBEAT_VOLUME), loop: true });
+          heartbeatWanted = true;
+          if (!buffers.heartbeat || heartbeat) return heartbeat ? action : null; // 아직 못 불러왔으면 불러오는 대로 튼다
+          startHeartbeat();
         } else {
           stopHeartbeat(HEARTBEAT_FADE_SEC);
         }

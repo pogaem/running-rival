@@ -1,4 +1,4 @@
-// 전적·개인 최고 기록(lib/history.ts) 시험
+// 전적·개인 최고 기록(lib/storage/history.ts) 시험
 import { describe, expect, it } from "vitest";
 import {
   bestPaceSecPerKm,
@@ -84,5 +84,39 @@ describe("중계에 쓰는 글", () => {
     const history = recordRace(EMPTY_HISTORY, race).history;
     expect(bestPaceSecPerKm(history, 1000)).toBe(1600);
     expect(bestPaceSecPerKm(history, 3000)).toBeNull();
+  });
+});
+
+describe("내 최고 기록 때의 달린 모양(runs)", () => {
+  const run = {
+    elevationGainM: 12,
+    points: [
+      { t: 0, d: 0 },
+      { t: 330, d: 1000 },
+    ],
+  };
+
+  it("최고 기록을 세웠을 때만 달린 모양을 저장한다", () => {
+    const first = recordRace(EMPTY_HISTORY, { opponentId: "러너-1", distanceM: 1000, won: true, myTimeSec: 330, run });
+    expect(first.history.runs?.["1000"]).toEqual(run);
+    const slower = recordRace(first.history, {
+      opponentId: "러너-1",
+      distanceM: 1000,
+      won: false,
+      myTimeSec: 400,
+      run: { elevationGainM: 99, points: run.points },
+    });
+    expect(slower.history.runs?.["1000"]?.elevationGainM).toBe(12); // 더 느린 기록으로 바뀌지 않는다
+  });
+
+  it("저장했다 다시 읽어도 같고, 망가진 값은 버린다", () => {
+    const saved = recordRace(EMPTY_HISTORY, { opponentId: "러너-1", distanceM: 1000, won: true, myTimeSec: 330, run }).history;
+    expect(parseHistory(serializeHistory(saved)).runs).toEqual({ "1000": run });
+    const broken = JSON.stringify({ ...saved, runs: { "1000": { elevationGainM: "많이", points: [{ t: "a", d: 1 }] } } });
+    expect(parseHistory(broken).runs).toBeUndefined();
+  });
+
+  it("예전에 저장된 기록(runs 없음)도 그대로 읽는다", () => {
+    expect(parseHistory(JSON.stringify({ version: 1, rivals: {}, bests: { "1000": 330 } })).bests).toEqual({ "1000": 330 });
   });
 });

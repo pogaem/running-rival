@@ -2,7 +2,7 @@
 // 레이스가 끝나면 이 모양으로 요약해 이 기기의 sessionStorage에 잠깐 넣고, 결과 화면이 읽어 보여 준다.
 // 위치 좌표나 이름은 담지 않는다: 시간·거리·격차 숫자와 상대의 익명 이름표뿐이다.
 import type { RaceEvent } from "./engine/race-engine";
-import type { RaceSettings } from "./race-settings";
+import { MAX_PACE_SEC_PER_KM, MAX_RACE_DISTANCE_M, MIN_PACE_SEC_PER_KM, MIN_RACE_DISTANCE_M, type RaceSettings } from "./race-settings";
 import { timeToReachDistance, type DistancePoint, type RunRecord } from "./record";
 
 /** 시간대별 격차 그래프의 한 점: 레이스 시간(초)과 격차(m, +는 내가 앞) */
@@ -109,6 +109,24 @@ export function parseSummary(text: string | null): RaceSummary | null {
     ) {
       return null;
     }
+    // 같은 브라우저에서만 바뀔 수 있는 값이지만, 망가진 값이 화면에 NaN이나 오류로 나오지 않게 모양을 한 번 더 확인한다
+    const finite = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+    const settings = value.settings as Partial<RaceSettings>;
+    if (
+      !finite(settings.distanceM) ||
+      settings.distanceM < MIN_RACE_DISTANCE_M ||
+      settings.distanceM > MAX_RACE_DISTANCE_M ||
+      !finite(settings.paceSecPerKm) ||
+      settings.paceSecPerKm < MIN_PACE_SEC_PER_KM ||
+      settings.paceSecPerKm > MAX_PACE_SEC_PER_KM ||
+      (settings.source !== "gps" && settings.source !== "demo")
+    ) {
+      return null;
+    }
+    if (typeof value.opponent.id !== "string" || value.opponent.id.length > 40) return null;
+    if (!finite(value.myTimeSec) || !finite(value.opponentTimeSec) || value.myTimeSec <= 0 || value.opponentTimeSec <= 0) return null;
+    if (!value.gapSeries.every((p) => p && finite(p.t) && finite(p.gapM))) return null;
+    if (!value.reversals.every((r) => r && finite(r.t) && (r.type === "overtake" || r.type === "overtaken"))) return null;
     return value as RaceSummary;
   } catch {
     return null;
@@ -179,9 +197,10 @@ export function buildAnalysis(summary: RaceSummary): string[] {
     if (worst.gapM < -5) lines.push(`가장 크게 뒤처진 때는 ${clock(worst.t)}쯤, ${Math.round(-worst.gapM)}m 차이였어요.`);
     const half = series[Math.floor(series.length / 2)];
     const end = series[series.length - 1];
-    const first = half.gapM;
+    // 전반과 후반에 격차가 얼마나 "변했는지"를 비교한다 (후반에 격차를 더 벌렸으면 유리한 흐름)
+    const first = half.gapM - series[0].gapM;
     const second = end.gapM - half.gapM;
-    if (Math.abs(second) > 3 || Math.abs(first) > 3) {
+    if (Math.abs(second - first) > 3) {
       lines.push(
         second > first
           ? "후반으로 갈수록 흐름이 내게 유리해졌어요. 후반 페이스가 좋았습니다."

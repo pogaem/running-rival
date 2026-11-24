@@ -26,8 +26,16 @@ import { createTrackRecorder } from "@/lib/track-recorder";
 import { useOpponentPool } from "../useOpponentPool";
 import { createInterruptionTracker } from "@/lib/input/interruption";
 import { detectDeviceEnv, ENV_LABEL, LOCATION_GUIDE, type DeviceEnv } from "@/lib/device";
-import { loadHistoryText, parseHistory, recordRace, rivalryIntro, saveHistory } from "@/lib/history";
+import { loadHistoryText, parseHistory, recordRace, rivalryIntro, saveHistory } from "@/lib/storage/history";
 import { freshRaceHref, matchForSettings, settingsFromQuery } from "@/lib/race-settings";
+import { distanceAtTime } from "@/lib/record";
+import {
+  AUTO_START_COUNT,
+  AUTO_START_MAX_ACCURACY_M,
+  AUTO_START_MAX_SPEED_MPS,
+  AUTO_START_MIN_SPEED_MPS,
+  SIGNAL_LOST_AFTER_SEC,
+} from "@/lib/config";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { PositionSample } from "@/lib/input/types";
 import { createBrowserSfxEnv, createSfx, type Sfx } from "@/lib/output/sfx";
@@ -151,6 +159,9 @@ function RaceScreenInner() {
       null,
     [settings, pool.records],
   );
+  // 시작 화면에서 고른 상대가 그 사이 지워졌으면(공유 기록을 내린 경우 등) 다른 상대로 바뀐다. 말없이 바꾸지 않고 알린다
+  const opponentSwapped =
+    pool.ready && !!settings.opponentId && !!opponent && opponent.id !== settings.opponentId;
   const raceDistanceM = settings.distanceM;
   // 레이스 시간이 실제 시계보다 몇 배 빠른가. 중계 간격을 "실제로 듣는 시간" 기준으로 맞추는 데 쓴다
   const raceTimeScale = settings.source === "gps" ? 1 : DEMO_SPEED;
@@ -163,6 +174,8 @@ function RaceScreenInner() {
   // 실제 GPS일 때: 마지막 위치 정확도(m)와 위치 오류
   const [gpsAccuracyM, setGpsAccuracyM] = useState<number | null>(null);
   const [gpsError, setGpsError] = useState<InputError | null>(null);
+  /** 위치 신호가 한동안 끊겼을 때: 상대는 계속 달리므로 상대 위치와 시계를 직접 이어 보여 준다 */
+  const [signalLost, setSignalLost] = useState<{ t: number; rivalDistanceM: number } | null>(null);
   /** 준비 화면에서 확인하는 위치 권한 상태 */
   const [locPerm, setLocPerm] = useState<"checking" | "granted" | "denied" | "unavailable">("checking");
   /** 위치 켜는 방법 안내: 기본은 접속한 기기에 맞는 것, 직접 바꿔 볼 수도 있다 */
@@ -349,6 +362,22 @@ function RaceScreenInner() {
       // 저장소를 못 쓰는 환경이면 결과 화면이 "결과 없음"으로 나온다
     }
 
+    // 위치 신호가 4초 넘게 안 들어오면(터널·건물 사이) 상대는 계속 달리는 모습을 보여 준다.
+    // 중계와 판정은 하지 않는다(내 위치를 모르는 채로 "추월당함"을 말하면 가짜일 수 있다). 신호가 돌아오면 그동안 달린 거리가 한꺼번에 반영된다
+    let lastEngineT = 0;
+    let lastEngineWallMs = nowMs();
+    let engineFinished = false;
+    const lostTimer =
+      settings.source === "gps"
+        ? setInterval(() => {
+            if (!raceStarted || isPaused || wasAutoPaused || engineFinished) return;
+            const sinceMs = nowMs() - lastEngineWallMs;
+            if (sinceMs < SIGNAL_LOST_AFTER_SEC * 1000) return;
+            const t = lastEngineT + sinceMs / 1000;
+            setSignalLost({ t, rivalDistanceM: Math.min(distanceAtTime(opponent, t), raceDistanceM) });
+          }, 1000)
+        : null;
+
     input.start({
       onSample: (incoming) => {
         const gate = interruption.onSample(incoming.t);
@@ -358,11 +387,11 @@ function RaceScreenInner() {
         if (!raceStarted) {
           const before = lastRaw;
           lastRaw = incoming;
-          if (before && incoming.accuracyM <= 30 && incoming.t > before.t) {
+          if (before && incoming.accuracyM <= AUTO_START_MAX_ACCURACY_M && incoming.t > before.t) {
             const speed = distanceBetweenM(before, incoming) / (incoming.t - before.t);
-            fastCount = speed >= 2 && speed <= 12 ? fastCount + 1 : 0;
+            fastCount = speed >= AUTO_START_MIN_SPEED_MPS && speed <= AUTO_START_MAX_SPEED_MPS ? fastCount + 1 : 0;
           }
-          if (fastCount < 3 && !startNowRequested) return; // 아직 뛰지 않는 중: 거리도 시간도 세지 않는다
+          if (fastCount < AUTO_START_COUNT && !startNowRequested) return; // 아직 뛰지 않는 중: 거리도 시간도 세지 않는다
           raceStarted = true;
           startOffsetSec = incoming.t;
           setWaitingStart(false);
@@ -405,7 +434,8 @@ function RaceScreenInner() {
         track.add(raceTimeSec, traveled);
         const decidedAtMs = nowMs();
         const result = engine.update(raceTimeSec, traveled);
-        appendGapPoint(gapSeries, { t: raceTimeSec, gapM: result.snapshot.gapM });
+        // 결승선에서는 두 러너 거리가 같아 격차가 0으로 막히므로, 결승 순간의 점은 그래프에 넣지 않는다
+        if (!result.finished) appendGapPoint(gapSeries, { t: raceTimeSec, gapM: result.snapshot.gapM });
         allEvents.push(...result.events);
         // 결승선을 지나면 결과를 이 기기에 잠깐 담아 결과 화면이 읽게 한다
         const finish = result.events.find((event) => event.type === "finish");
@@ -424,19 +454,22 @@ function RaceScreenInner() {
           if (summary) {
             summary.raceId = Date.now();
             setFinalResult({ won: summary.won, marginSec: summary.opponentTimeSec - summary.myTimeSec });
-            // 전적과 개인 최고 기록에 반영한다 (이 기기에만 저장)
-            const outcome = recordRace(parseHistory(loadHistoryText()), {
-              opponentId: summary.opponent.id,
-              distanceM: settings.distanceM,
-              won: summary.won,
-              myTimeSec: summary.myTimeSec,
-            });
-            saveHistory(outcome.history);
-            summary.history = {
-              newBest: outcome.newBest,
-              previousBestSec: outcome.previousBestSec,
-              rival: { wins: outcome.rival.wins, losses: outcome.rival.losses },
-            };
+            // 전적과 개인 최고 기록에 반영한다 (이 기기에만 저장). 데모는 실제로 뛴 것이 아니므로 반영하지 않는다
+            if (settings.source === "gps") {
+              const outcome = recordRace(parseHistory(loadHistoryText()), {
+                opponentId: summary.opponent.id,
+                distanceM: settings.distanceM,
+                won: summary.won,
+                myTimeSec: summary.myTimeSec,
+                run: summary.myTrack ? { elevationGainM: summary.myElevationGainM, points: summary.myTrack } : undefined,
+              });
+              saveHistory(outcome.history);
+              summary.history = {
+                newBest: outcome.newBest,
+                previousBestSec: outcome.previousBestSec,
+                rival: { wins: outcome.rival.wins, losses: outcome.rival.losses },
+              };
+            }
             try {
               sessionStorage.setItem(SUMMARY_STORAGE_KEY, serializeSummary(summary));
             } catch {
@@ -444,6 +477,10 @@ function RaceScreenInner() {
             }
           }
         }
+        lastEngineT = raceTimeSec;
+        lastEngineWallMs = nowMs();
+        engineFinished = result.finished;
+        setSignalLost(null);
         latestTick.current = result;
         setTick(result);
         outputMoments(result.events, result.prediction, raceTimeSec, decidedAtMs);
@@ -458,6 +495,7 @@ function RaceScreenInner() {
     });
 
     return () => {
+      if (lostTimer) clearInterval(lostTimer);
       document.removeEventListener("visibilitychange", onVisibility);
       pauseControlRef.current = null;
       input.stop();
@@ -508,6 +546,8 @@ function RaceScreenInner() {
   }, [phase, settings.source, askLocation]);
 
   /** "소리 켜고 시작": 소리 잠금을 풀고(사용자가 누른 때만 가능), 멘트 도구를 준비하고, 레이스를 시작한다 */
+  /** 실제 GPS로 뛰려는데 위치가 꺼져 있거나 지원하지 않으면 시작할 수 없다 (데모로 바꾸면 된다) */
+  const locBlocked = settings.source === "gps" && (locPerm === "denied" || locPerm === "unavailable");
   const startRace = () => {
     const speaker = createSpeaker(createBrowserSpeakerEnv());
     speaker.unlock();
@@ -532,8 +572,8 @@ function RaceScreenInner() {
   };
 
   const myDistance = tick?.snapshot.myDistanceM ?? 0;
-  const gap = tick?.snapshot.gapM ?? 0;
-  const rivalDistance = tick?.snapshot.opponentDistanceM ?? 0;
+  const rivalDistance = signalLost ? signalLost.rivalDistanceM : (tick?.snapshot.opponentDistanceM ?? 0);
+  const gap = signalLost ? myDistance - rivalDistance : (tick?.snapshot.gapM ?? 0);
   /** 코스 위 위치(0~100%) */
   const trackPercent = (distanceM: number) => Math.max(0, Math.min(100, (distanceM / raceDistanceM) * 100));
   const meAhead = myDistance >= rivalDistance;
@@ -645,16 +685,25 @@ function RaceScreenInner() {
                       ))}
                     </ol>
                   </details>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLocPerm("checking");
-                      askLocation();
-                    }}
-                    className="self-start underline"
-                  >
-                    다시 확인하기
-                  </button>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLocPerm("checking");
+                        askLocation();
+                      }}
+                      className="underline"
+                    >
+                      다시 확인하기
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => router.replace(freshRaceHref({ ...settings, source: "demo" }))}
+                      className="font-semibold underline"
+                    >
+                      위치 없이 데모로 체험하기
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -662,6 +711,11 @@ function RaceScreenInner() {
           {!voiceSupport.speech && <p className="text-xs text-white/55">이 기기는 음성 미지원(자막만)</p>}
         </section>
 
+        {opponentSwapped && (
+          <p role="status" className="px-1 text-center text-xs text-amber-300">
+            고른 상대의 기록이 없어져서, 비슷한 다른 상대({displayName(opponent.id)})로 바꿨어요.
+          </p>
+        )}
         <p className="px-1 text-center text-sm text-white/60">이어폰을 끼고, 외부 소리 듣기 모드를 켜고 뛰세요.</p>
 
         <details className="px-1 text-xs text-white/50">
@@ -678,10 +732,10 @@ function RaceScreenInner() {
           <button
             type="button"
             onClick={startRace}
-            disabled={!pool.ready || !opponent}
+            disabled={!pool.ready || !opponent || locBlocked}
             className="flex-1 btn-primary disabled:opacity-40"
           >
-            {pool.ready ? "소리 켜고 시작" : "불러오는 중…"}
+            {!pool.ready ? "불러오는 중…" : locBlocked ? "위치를 켜 주세요" : "소리 켜고 시작"}
           </button>
         </div>
       </main>
@@ -698,7 +752,9 @@ function RaceScreenInner() {
         ? "화면이 가려져서 경기를 멈췄어요. 돌아오면 이어집니다"
         : autoPaused
           ? "멈춘 것이 감지돼 일시정지 중이에요. 다시 달리면 이어집니다"
-          : settings.source === "gps" && gpsAccuracyM === null
+          : signalLost
+            ? "위치 신호가 약해요. 상대는 계속 달리는 중이에요 (신호가 돌아오면 이어져요)"
+            : settings.source === "gps" && gpsAccuracyM === null
             ? "위치 신호를 기다리는 중…"
             : waitingStart
               ? "뛰기 시작하면 자동으로 출발해요"
@@ -726,7 +782,7 @@ function RaceScreenInner() {
           </div>
           <div className="text-right">
             <p className="text-[11px] font-semibold text-white/60">시간</p>
-            <p className="text-3xl font-bold tracking-tight tabular-nums">{formatRaceClock(tick?.t ?? 0)}</p>
+            <p className="text-3xl font-bold tracking-tight tabular-nums">{formatRaceClock(signalLost?.t ?? tick?.t ?? 0)}</p>
           </div>
         </div>
       </section>
@@ -761,9 +817,20 @@ function RaceScreenInner() {
 
       <section aria-label="중계 자막" aria-live="polite" className="glass flex h-[72px] shrink-0 items-center px-4">
         {notice ? (
-          <p role="status" className="text-sm font-semibold text-white/85">
-            {notice}
-          </p>
+          <div className="flex w-full items-center justify-between gap-3">
+            <p role="status" className="text-sm font-semibold text-white/85">
+              {notice}
+            </p>
+            {gpsError && (gpsError.kind === "denied" || gpsError.kind === "unsupported") && (
+              <button
+                type="button"
+                onClick={() => router.replace(freshRaceHref({ ...settings, source: "demo" }))}
+                className="btn-secondary shrink-0 !px-3 !py-1.5 text-xs"
+              >
+                데모로 체험
+              </button>
+            )}
+          </div>
         ) : latest ? (
           <div className="min-w-0">
             <p className={`line-clamp-2 text-base font-semibold leading-snug ${TONE_CLASS[latest.tone]}`}>

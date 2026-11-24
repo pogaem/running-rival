@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { virtualRunners } from "./runners";
 import {
   appendGapPoint,
+  buildAnalysis,
   buildRaceSummary,
   computeGraphGeometry,
   describeElevation,
@@ -142,5 +143,18 @@ describe("buildAnalysis", () => {
     } as never);
     expect(lines[0]).toContain("12초");
     expect(lines.join(" ")).toContain("1번");
+  });
+});
+
+describe("buildAnalysis: 후반 흐름", () => {
+  const withSeries = (gapSeries: GapPoint[]) => makeSummary({ gapSeries, reversals: [], won: true, myElevationGainM: null });
+  it("전반에 크게 앞서고 후반에도 더 벌렸으면 '유리해졌어요'", () => {
+    const lines = buildAnalysis(withSeries([{ t: 0, gapM: 0 }, { t: 100, gapM: 20 }, { t: 200, gapM: 50 }]));
+    expect(lines.join(" ")).toContain("유리해졌어요");
+  });
+
+  it("전반에 앞섰지만 후반에 격차가 줄었으면 '밀리는 흐름'", () => {
+    const lines = buildAnalysis(withSeries([{ t: 0, gapM: 0 }, { t: 100, gapM: 40 }, { t: 200, gapM: 20 }]));
+    expect(lines.join(" ")).toContain("밀리는 흐름");
   });
 });
