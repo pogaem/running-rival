@@ -604,6 +604,17 @@ function RaceScreenInner() {
     outputMoments([event], null, t, nowMs());
   };
 
+  /** 나가기: 창으로 물어보는 동안 경기는 멈춘다 */
+  const askEnd = () => {
+    setConfirmingEnd(true);
+    if (!userPaused && !waitingStart) pauseControlRef.current?.setPaused(true);
+  };
+  /** 계속 달리기: 창을 닫고 멈춘 경기를 이어간다 */
+  const cancelEnd = () => {
+    setConfirmingEnd(false);
+    if (!waitingStart) pauseControlRef.current?.setPaused(false);
+  };
+
   const myDistance = tick?.snapshot.myDistanceM ?? 0;
   const rivalDistance = signalLost ? signalLost.rivalDistanceM : (tick?.snapshot.opponentDistanceM ?? 0);
   const gap = signalLost ? myDistance - rivalDistance : (tick?.snapshot.gapM ?? 0);
@@ -803,19 +814,19 @@ function RaceScreenInner() {
           progress={trackPercent(myDistance) / 100}
           markers={raceMarkers}
         />
-        <div className="absolute inset-x-3 top-3 flex items-stretch justify-between gap-2">
-          <div className="glass min-w-0 flex-1 !rounded-3xl px-4 py-2">
-            <p className="truncate text-[11px] font-semibold text-white/65">
+        <div className="absolute inset-x-0 top-0 flex items-start justify-between bg-gradient-to-b from-black/75 to-transparent p-4 pb-8">
+          <div>
+            <p className="text-[11px] font-semibold text-white/60">
               {opponent ? displayName(opponent.id) : "상대"} 와 {raceDistanceM / 1000}km
             </p>
-            <p className="text-3xl font-bold tracking-tight tabular-nums">
+            <p className="text-5xl font-bold tracking-tight tabular-nums">
               {(myDistance / 1000).toFixed(2)}
-              <span className="ml-1 text-sm font-medium text-white/65">km</span>
+              <span className="ml-1 text-sm font-medium text-white/60">km</span>
             </p>
           </div>
-          <div className="glass shrink-0 !rounded-3xl px-4 py-2 text-right">
-            <p className="text-[11px] font-semibold text-white/65">시간</p>
-            <p className="text-2xl font-bold tracking-tight tabular-nums">{formatRaceClock(signalLost?.t ?? tick?.t ?? 0)}</p>
+          <div className="text-right">
+            <p className="text-[11px] font-semibold text-white/60">시간</p>
+            <p className="text-3xl font-bold tracking-tight tabular-nums">{formatRaceClock(signalLost?.t ?? tick?.t ?? 0)}</p>
           </div>
         </div>
       </section>
@@ -900,53 +911,27 @@ function RaceScreenInner() {
       )}
 
       <div className="flex shrink-0 flex-col gap-2 pb-1">
-        {confirmingEnd && !finished && running && (
-          <p role="alert" className="text-center text-xs text-white/70">
-            경기를 잠깐 멈췄어요. 끝까지 달리지 않고 나가면 결과와 전적에 반영되지 않아요. 정말 나갈까요?
-          </p>
-        )}
         {finished || !running ? (
           <Link href="/result" className="btn-primary">
             결과 보기
           </Link>
-        ) : waitingStart && !confirmingEnd ? (
-          <div className="flex gap-3">
+        ) : waitingStart ? (
+          <div className="flex items-center gap-3">
             <button type="button" onClick={() => pauseControlRef.current?.startNow()} className="flex-1 btn-primary">
               바로 시작
             </button>
-            <button type="button" onClick={() => setConfirmingEnd(true)} className="flex-1 btn-secondary">
+            <button type="button" onClick={askEnd} className="shrink-0 rounded-full border border-white/20 bg-white/8 px-4 py-2 text-xs font-semibold text-white/80">
               나가기
             </button>
-          </div>
-        ) : confirmingEnd ? (
-          <div className="flex gap-3">
-            <button type="button" onClick={() => {
-                setConfirmingEnd(false);
-                if (!waitingStart) pauseControlRef.current?.setPaused(false); // 계속 달리기: 멈춘 경기를 이어간다
-              }} className="flex-1 btn-secondary">
-              계속 달리기
-            </button>
-            <Link href="/" className="flex-1 btn-primary">
-              나가기
-            </Link>
           </div>
         ) : (
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                setConfirmingEnd(true);
-                if (!userPaused) pauseControlRef.current?.setPaused(true); // 나갈지 고르는 동안 경기는 멈춘다
-              }}
-              className="flex-1 btn-secondary"
-            >
-              나가기
-            </button>
+          <div className="grid grid-cols-3 items-center">
+            <span />
             <button
               type="button"
               aria-label={userPaused ? "이어달리기" : "중지"}
               onClick={() => pauseControlRef.current?.setPaused(!userPaused)}
-              className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-white text-xl font-bold text-[#0a0c12] shadow-[0_8px_28px_rgba(255,255,255,0.25)]"
+              className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-xl font-bold text-[#0a0c12] shadow-[0_8px_28px_rgba(255,255,255,0.25)]"
             >
               {userPaused ? (
                 <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
@@ -959,9 +944,29 @@ function RaceScreenInner() {
                 </svg>
               )}
             </button>
+            <button type="button" onClick={askEnd} className="ml-auto rounded-full border border-white/20 bg-white/8 px-4 py-2 text-xs font-semibold text-white/80">
+              나가기
+            </button>
           </div>
         )}
       </div>
+
+      {confirmingEnd && !finished && running && (
+        <div role="dialog" aria-modal="true" aria-label="나가기 확인" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm">
+          <div className="glass w-full max-w-xs !bg-[#14171f]/90 p-5 text-center">
+            <p className="text-lg font-bold">정말 나갈까요?</p>
+            <p className="mt-2 text-sm text-white/65">끝까지 달리지 않고 나가면 결과와 전적에 반영되지 않아요. 경기는 잠깐 멈춰 둘게요.</p>
+            <div className="mt-4 flex gap-3">
+              <button type="button" onClick={cancelEnd} className="flex-1 btn-secondary !py-3">
+                계속 달리기
+              </button>
+              <Link href="/" className="flex-1 btn-primary !py-3">
+                나가기
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

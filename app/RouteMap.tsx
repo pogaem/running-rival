@@ -178,6 +178,7 @@ export default function RouteMap({
           const cx = Math.min(Math.max(p.x + (isMe ? 30 : -30), edge), W - edge);
           const cardY = Math.max(p.y - 46, 76); // 위쪽 거리·시간 카드 아래에 오도록 76 이상
           const pillY = cardY - 26;
+          const cardW = isMe ? 32 : 44;
           return (
             <g key={i}>
               <line x1={cx} y1={cardY + 32} x2={p.x} y2={p.y} stroke="rgba(255,255,255,0.55)" strokeWidth="1.5" />
@@ -186,9 +187,9 @@ export default function RouteMap({
               <text x={cx} y={pillY + 15} textAnchor="middle" fontSize="11" fontWeight="700" fill="#0a0c12">
                 {marker.label}
               </text>
-              <rect x={cx - 16} y={cardY} width="32" height="32" rx="11" fill={isMe ? "#facc15" : "rgba(255,255,255,0.22)"} stroke={isMe ? "#fde68a" : "rgba(255,255,255,0.6)"} strokeWidth="1.5" />
-              <text x={cx} y={cardY + 21} textAnchor="middle" fontSize="13" fontWeight="800" fill={isMe ? "#0a0c12" : "#ffffff"}>
-                {isMe ? "나" : "상"}
+              <rect x={cx - cardW / 2} y={cardY} width={cardW} height="32" rx="11" fill={isMe ? "#facc15" : "rgba(255,255,255,0.22)"} stroke={isMe ? "#fde68a" : "rgba(255,255,255,0.6)"} strokeWidth="1.5" />
+              <text x={cx} y={cardY + 21} textAnchor="middle" fontSize={isMe ? 13 : 12} fontWeight="800" fill={isMe ? "#0a0c12" : "#ffffff"}>
+                {isMe ? "나" : "상대"}
               </text>
             </g>
           );
