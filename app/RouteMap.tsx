@@ -26,12 +26,12 @@ export function courseShapeFor(distanceM: number | undefined): CourseShape {
 /** 세로로 긴 레이스 지도는 가로가 잘려 보이므로 코스를 가운데로 모은다 */
 const X_SCALE: Record<RouteVariant, number> = { banner: 1, compact: 0.62, wide: 1, tall: 0.78 };
 
-function buildRoute(h: number, top: number, shape: CourseShape, xScale = 1): { x: number; y: number }[] {
+function buildRoute(h: number, top: number, shape: CourseShape, xScale = 1, bottom = 38): { x: number; y: number }[] {
   return Array.from({ length: STEPS + 1 }, (_, i) => {
     const t = i / STEPS;
     return {
       x: 170 + xScale * (shape.amp * Math.sin(shape.freq * t + 0.6) + shape.wiggle * Math.sin(13 * t + 1)),
-      y: top + (h - top - 38) * t,
+      y: top + (h - top - bottom) * t,
     };
   });
 }
@@ -49,6 +49,8 @@ function contourPaths(cx: number, cy: number, rings: number, step: number, seed:
   });
 }
 
+/** 화면이 낮으면 지도 위아래가 잘리므로 코스 끝(도착)을 아래 가장자리에서 띄운다 */
+const BOTTOM: Record<RouteVariant, number> = { wide: 38, banner: 38, compact: 70, tall: 76 };
 const TOPS: Record<RouteVariant, number> = { wide: 38, banner: 58, compact: 128, tall: 112 };
 const CONTOURS: Record<RouteVariant, string[]> = {
   wide: [...contourPaths(60, 90, 8, 20, 1), ...contourPaths(290, 220, 9, 18, 4)],
@@ -62,7 +64,7 @@ function geometryFor(variant: RouteVariant, distanceM: number | undefined): Geom
   const key = `${variant}:${shape.freq}`;
   let geometry = geometryCache.get(key);
   if (!geometry) {
-    geometry = { h: HEIGHTS[variant], route: buildRoute(HEIGHTS[variant], TOPS[variant], shape, X_SCALE[variant]), contours: CONTOURS[variant] };
+    geometry = { h: HEIGHTS[variant], route: buildRoute(HEIGHTS[variant], TOPS[variant], shape, X_SCALE[variant], BOTTOM[variant]), contours: CONTOURS[variant] };
     geometryCache.set(key, geometry);
   }
   return geometry;
