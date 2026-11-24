@@ -8,8 +8,12 @@ export const AUTO_START_MAX_ACCURACY_M = 30;
 /** 걷는 속도보다 빠르고(초속 2m ≈ 시속 7km) 달리기로 볼 수 있는 속도 범위 (m/s) */
 export const AUTO_START_MIN_SPEED_MPS = 2;
 export const AUTO_START_MAX_SPEED_MPS = 12;
+/** 이 시간(초) 만큼 떨어진 두 점으로 이동 거리를 잰다 (점 사이 속도는 GPS 흔들림에 속기 쉽다) */
+export const AUTO_START_WINDOW_SEC = 4;
 /** 이 범위의 움직임이 연속으로 몇 번 이어지면 출발로 보는가 */
-export const AUTO_START_COUNT = 3;
+export const AUTO_START_COUNT = 2;
+/** 이동 거리가 두 점의 위치 오차 반경 합의 이 배수(0.5 = 평균 오차 반경)보다 커야 "진짜로 움직였다"고 본다 */
+export const AUTO_START_ACCURACY_FACTOR = 0.5;
 /** 위치 신호가 이 시간(초) 넘게 안 들어오면 "신호 약함" 안내와 함께 상대만 계속 달리는 모습을 보여 준다 */
 export const SIGNAL_LOST_AFTER_SEC = 4;
 

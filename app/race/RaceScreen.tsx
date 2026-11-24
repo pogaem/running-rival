@@ -19,6 +19,7 @@ import { createBrowserGpsEnv, createGpsInput } from "@/lib/input/gps-input";
 import { createElevationTracker } from "@/lib/input/elevation";
 import { appendGapPoint, buildRaceSummary, formatMargin, serializeSummary, SUMMARY_STORAGE_KEY, type GapPoint } from "@/lib/result";
 import { createAutoPause } from "@/lib/input/auto-pause";
+import { createAutoStart } from "@/lib/input/auto-start";
 import { createPositionFilter } from "@/lib/input/gps-filter";
 import type { InputError, PositionInput } from "@/lib/input/types";
 import { makeNoisyTrack } from "@/lib/input/synthetic-track";
@@ -30,10 +31,12 @@ import { loadHistoryText, parseHistory, recordRace, rivalryIntro, saveHistory } 
 import { freshRaceHref, matchForSettings, settingsFromQuery } from "@/lib/race-settings";
 import { distanceAtTime } from "@/lib/record";
 import {
+  AUTO_START_ACCURACY_FACTOR,
   AUTO_START_COUNT,
   AUTO_START_MAX_ACCURACY_M,
   AUTO_START_MAX_SPEED_MPS,
   AUTO_START_MIN_SPEED_MPS,
+  AUTO_START_WINDOW_SEC,
   SIGNAL_LOST_AFTER_SEC,
 } from "@/lib/config";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -340,8 +343,14 @@ function RaceScreenInner() {
     let raceStarted = !autoStart;
     let startOffsetSec = 0;
     let startNowRequested = false;
-    let lastRaw: PositionSample | null = null;
-    let fastCount = 0;
+    const autoStartDetector = createAutoStart({
+      maxAccuracyM: AUTO_START_MAX_ACCURACY_M,
+      minSpeedMps: AUTO_START_MIN_SPEED_MPS,
+      maxSpeedMps: AUTO_START_MAX_SPEED_MPS,
+      windowSec: AUTO_START_WINDOW_SEC,
+      count: AUTO_START_COUNT,
+      accuracyFactor: AUTO_START_ACCURACY_FACTOR,
+    });
     pauseControlRef.current = {
       startNow() {
         startNowRequested = true;
@@ -385,13 +394,8 @@ function RaceScreenInner() {
         setInterruptedSec(gate.interruptedSec);
         // 멈춘 시간을 뺀 시계로 바꿔서 쓴다. 이하 필터·자동 일시정지·엔진은 이 시계를 본다
         if (!raceStarted) {
-          const before = lastRaw;
-          lastRaw = incoming;
-          if (before && incoming.accuracyM <= AUTO_START_MAX_ACCURACY_M && incoming.t > before.t) {
-            const speed = distanceBetweenM(before, incoming) / (incoming.t - before.t);
-            fastCount = speed >= AUTO_START_MIN_SPEED_MPS && speed <= AUTO_START_MAX_SPEED_MPS ? fastCount + 1 : 0;
-          }
-          if (fastCount < AUTO_START_COUNT && !startNowRequested) return; // 아직 뛰지 않는 중: 거리도 시간도 세지 않는다
+          const started = autoStartDetector.push(incoming);
+          if (!started && !startNowRequested) return; // 아직 뛰지 않는 중: 거리도 시간도 세지 않는다
           raceStarted = true;
           startOffsetSec = incoming.t;
           setWaitingStart(false);
