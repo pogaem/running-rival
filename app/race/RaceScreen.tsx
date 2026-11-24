@@ -219,6 +219,7 @@ function RaceScreenInner() {
   const speakerRef = useRef<Speaker | null>(null);
   /** 지난 대결 한마디. 출발 중계 때 대신 말한다 */
   const introRef = useRef<string | null>(null);
+  const inFlightSpeech = useRef(0); // 읽으라고 시켰지만 아직 끝나지 않은 멘트 수
   const speakingCount = useRef(0); // 지금 읽는 중인 멘트 수(효과음을 낮추는 동안)
   const policyRef = useRef<VoicePolicy | null>(null);
   const sfxRef = useRef<Sfx | null>(null);
@@ -237,11 +238,25 @@ function RaceScreenInner() {
     const entries: LogEntry[] = [];
     const speak = (id: number, text: string, priority: boolean) => {
       // 중계가 나가는 동안 효과음(심장 박동·함성)은 작게 낮춘다. 멘트가 겹치거나 끊겨도 마지막 멘트가 끝날 때만 되돌린다
+      // 앞 멘트가 아직 읽히는 중이면 우선 이벤트가 아닌 멘트는 줄 세우지 않고 건너뛴다.
+      // 줄 서 있다 늦게 읽히면 숫자(격차 등)가 그새 달라져 지금과 다른 말을 하게 된다
+      if (!priority && inFlightSpeech.current > 0) {
+        setLog((current) => applyVoiceResult(current, id, { status: "error", message: "앞 멘트를 읽는 중이라 건너뜀" }));
+        return;
+      }
+      inFlightSpeech.current += 1;
+      let inFlight = true;
+      const release = () => {
+        if (!inFlight) return;
+        inFlight = false;
+        inFlightSpeech.current = Math.max(0, inFlightSpeech.current - 1);
+      };
       let counted = false;
       void speaker
         ?.speak(text, {
           priority,
           onEnd: () => {
+            release();
             if (!counted) return;
             counted = false;
             speakingCount.current = Math.max(0, speakingCount.current - 1);
@@ -249,6 +264,7 @@ function RaceScreenInner() {
           },
         })
         .then((result) => {
+          if (result.status !== "started") release();
           if (result.status === "started") {
             counted = true;
             speakingCount.current += 1;
@@ -533,6 +549,7 @@ function RaceScreenInner() {
       pauseControlRef.current = null;
       input.stop();
       speakerRef.current?.cancel();
+      inFlightSpeech.current = 0;
       sfxRef.current?.stopAll();
     };
   }, [phase, outputMoments, opponent, raceDistanceM, raceTimeScale, settings]);
